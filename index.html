@@ -27,7 +27,7 @@
   <section class="screen on" id="title">
     <div class="wrap">
       <div class="logo">
-        <div class="ball"><svg width="70" height="70" viewBox="0 0 64 64" aria-hidden="true"><g transform="rotate(-35 32 32)"><ellipse cx="32" cy="32" rx="27" ry="16" fill="#fff"/><ellipse cx="32" cy="32" rx="23.5" ry="12.5" fill="#8b4a24"/><path d="M20 32h24M26 28v8M30 28v8M34 28v8M38 28v8" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></g></svg></div>
+        <div class="ball" id="logoHelmet"></div>
         <h1>GRID<span>IRON</span></h1>
         <p>Sticker-sized football. Big-time drama.</p>
       </div>
@@ -36,8 +36,9 @@
         <button class="btn block" id="btnQuick">Quick Game</button>
         <button class="btn ghost block soon" disabled>Franchise Mode</button>
         <button class="btn ghost block" id="btnHelp">How to Play</button>
+        <button class="btn ghost block" id="btnSettings">Settings</button>
       </div>
-      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.1 · Phase 1 · Add to your Home Screen to play like an app</p>
+      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.2 · Phase 1.5 · Add to your Home Screen to play like an app</p>
     </div>
   </section>
 
@@ -71,21 +72,17 @@
 
   <!-- GAME -->
   <section class="screen" id="game">
-    <header class="sticker scorebug" id="sb"></header>
-    <div class="fieldwrap sticker" id="fieldwrap">
+    <div class="fieldwrap" id="fieldwrap">
       <canvas id="field" aria-label="Football field"></canvas>
-      <div class="hud">
-        <div><span class="chipx" id="hudWx"></span></div>
-        <div><button id="btnSpeed" aria-label="Animation speed">1×</button><button id="btnLog" aria-label="Play log">📋</button><button id="btnMenu" aria-label="Menu">☰</button></div>
-      </div>
       <div id="bannerHost"></div>
     </div>
-    <div class="sticker ticker" id="ticker"><span class="txt muted">Welcome to the game.</span></div>
-    <div class="stars">
-      <div class="head"><span class="label">★ Show-Me Meters</span><div class="seg" id="starTab"><button data-v="me" class="on">You</button><button data-v="them">Them</button></div></div>
+    <header class="scorebar sticker" id="sb"></header>
+    <div class="status sticker" id="status" hidden></div>
+    <div class="psheet sticker" id="psheet">
+      <button class="ticker" id="ticker" aria-label="Open play-by-play"><span class="txt muted">Welcome to the game.</span></button>
       <div class="chips" id="chips"></div>
+      <div id="callpanel"></div>
     </div>
-    <div class="sticker callpanel" id="callpanel"></div>
   </section>
 
   <!-- FINAL -->
@@ -98,6 +95,7 @@
 
 <script src="js/data.js"></script>
 <script src="js/sim.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/anim.js"></script>
 <script src="js/ui.js"></script>
 <script>

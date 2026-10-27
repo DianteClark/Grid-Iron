@@ -1,8 +1,8 @@
 /* Grid Iron service worker: offline play + quick updates */
-const VERSION = 'gridiron-v0.1.0';
+const VERSION = 'gridiron-v0.2.0';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
-  'js/data.js', 'js/sim.js', 'js/anim.js', 'js/ui.js',
+  'js/data.js', 'js/sim.js', 'js/audio.js', 'js/anim.js', 'js/ui.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon.svg',
 ];
 self.addEventListener('install', (e) => {

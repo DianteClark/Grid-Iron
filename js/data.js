@@ -61,6 +61,7 @@
     LB: { side: 'D', label: 'LB', full: 'Linebacker' },
     S:  { side: 'D', label: 'S',  full: 'Safety' },
     DL: { side: 'D', label: 'DL', full: 'Defensive Line' },
+    CB: { side: 'D', label: 'CB', full: 'Cornerback' },
     KP: { side: 'ST', label: 'K/P', full: 'Kicker / Punter' },
   };
   // what a Show-Me play looks like for each star
@@ -72,10 +73,11 @@
     DL: { d: ['short', 'long', 'trick', 'in_run', 'out_run'], name: 'Strip Sack', desc: 'Sack or tackle for loss, may force a fumble' },
     LB: { d: ['in_run', 'out_run', 'short', 'trick'], name: 'Takeaway', desc: 'Punches the ball out or jumps the route' },
     S:  { d: ['short', 'long', 'trick'], name: 'Pick Six Hunt', desc: 'Picks it off and takes it back' },
+    CB: { d: ['short', 'long'], name: 'Lockdown', desc: 'Jumps the route: pick or pass breakup' },
     KP: { k: true, name: 'Big Leg', desc: '+8 yards of range, booming punts' },
   };
   // flexible star slot limits (on-field room)
-  GI.FLEX_MAX = { RB: 1, WR: 3, OL: 3, LB: 2, S: 2, DL: 3 };
+  GI.FLEX_MAX = { RB: 1, WR: 3, OL: 3, LB: 2, S: 2, DL: 3, CB: 2 };
 
   // ---------- plays ----------
   GI.OFF_PLAYS = [

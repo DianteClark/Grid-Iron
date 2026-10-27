@@ -22,12 +22,12 @@
   // ---------- teams ----------
   const ROLE_MAP = {
     QB: ['QB'], RB: ['RB'], WR: ['WR1', 'WR2', 'WR3'], OL: ['C', 'LT', 'RT'],
-    LB: ['MLB', 'WLB', 'SLB'], S: ['FS', 'SS'], DL: ['DE1', 'DE2', 'DT1'], KP: ['K'],
+    LB: ['MLB', 'WLB', 'SLB'], S: ['FS', 'SS'], DL: ['DE1', 'DE2', 'DT1'], CB: ['CB1', 'CB2'], KP: ['K'],
   };
-  const NUMS = { QB: [1, 19], RB: [20, 39], WR: [80, 89], OL: [60, 79], LB: [40, 59], S: [20, 49], DL: [90, 99], KP: [1, 19] };
+  const NUMS = { QB: [1, 19], RB: [20, 39], WR: [80, 89], OL: [60, 79], LB: [40, 59], S: [20, 49], DL: [90, 99], CB: [20, 39], KP: [1, 19] };
   const BOOST = {
     QB: { pass: 9 }, RB: { run: 9 }, WR: { pass: 5 }, OL: { run: 4, ol: 6 },
-    LB: { runD: 5, passD: 2 }, S: { passD: 6 }, DL: { rush: 6, runD: 3 }, KP: { st: 14 },
+    LB: { runD: 5, passD: 2 }, S: { passD: 4, runD: 2 }, CB: { passD: 6 }, DL: { rush: 6, runD: 3 }, KP: { st: 14 },
   };
 
   GI.buildTeam = function (i) {
@@ -40,10 +40,10 @@
       flex = [];
       const c = {};
       while (flex.length < 5) {
-        const p = pick(['RB', 'WR', 'OL', 'LB', 'S', 'DL', 'WR', 'DL', 'LB', 'S']);
+        const p = pick(['RB', 'WR', 'OL', 'LB', 'S', 'DL', 'WR', 'DL', 'LB', 'S', 'CB', 'CB']);
         if ((c[p] || 0) < GI.FLEX_MAX[p]) { c[p] = (c[p] || 0) + 1; flex.push(p); }
       }
-    } while (!flex.some((p) => ['RB', 'WR', 'OL'].includes(p)) || !flex.some((p) => ['LB', 'S', 'DL'].includes(p)));
+    } while (!flex.some((p) => ['RB', 'WR', 'OL'].includes(p)) || !flex.some((p) => ['LB', 'S', 'DL', 'CB'].includes(p)));
     const slots = ['KP', 'QB', 'LB'].concat(flex);
     const used = new Set(), usedNum = new Set();
     const roleUse = {};
@@ -67,6 +67,7 @@
       if (s.pos === 'WR') offW.pass += 0.6;
       if (s.pos === 'DL' || s.pos === 'LB') defW.blitz += 0.4;
       if (s.pos === 'S') defW.cover += 0.6;
+      if (s.pos === 'CB') defW.press += 0.6;
     });
     const wp = (w) => { let t = 0; for (const k in w) t += w[k]; let x = r() * t; for (const k in w) { x -= w[k]; if (x <= 0) return k; } return 'balanced'; };
     const coaches = {
@@ -355,12 +356,26 @@
       return best;
     };
     const oS = trig(ot, 'o'), dS = trig(dt, 'd');
-    let crazy = null;
-    if (oS && dS) crazy = oS.score >= dS.score ? { s: oS.s, side: 'o' } : { s: dS.s, side: 'd' };
+    let crazy = null, clash = null;
+    if (oS && dS) {
+      // STAR CLASH: both stars go off on the same snap
+      const cs = (s, side, team) => s.rating + (G.morale[side] - 50) * 0.35 + (s.armed ? 10 : 0) + R() * 25;
+      const oScore = cs(oS.s, P, ot) + a * 6, dScore = cs(dS.s, D, dt) - a * 6;
+      const oWin = oScore >= dScore;
+      crazy = oWin ? { s: oS.s, side: 'o' } : { s: dS.s, side: 'd' };
+      const win = oWin ? oS.s : dS.s, lose = oWin ? dS.s : oS.s;
+      clash = { o: GI.shortName(oS.s.name), oPos: oS.s.pos, d: GI.shortName(dS.s.name), dPos: dS.s.pos, winner: GI.shortName(win.name), winSide: oWin ? P : D, loseSide: oWin ? D : P };
+      G.morale[clash.winSide] = clamp(G.morale[clash.winSide] + 4, 15, 99);
+      G.morale[clash.loseSide] = clamp(G.morale[clash.loseSide] - 4, 15, 99);
+      G.rivals = G.rivals || [];
+      G.rivals.unshift({ a: win.name, b: lose.name, q: G.q });
+      clash.refund = win;
+    }
     else if (oS) crazy = { s: oS.s, side: 'o' };
     else if (dS) crazy = { s: dS.s, side: 'd' };
     armedUsed.forEach((s) => { s.armed = false; s.meter = 0; });
     if (crazy && crazy.s.meter > 0) crazy.s.meter = Math.max(0, crazy.s.meter - 45);
+    if (clash) { clash.refund.meter = 40; delete clash.refund; res.clash = clash; }
 
     // receiver / defender selection helpers
     const pickTarget = () => {
@@ -395,6 +410,9 @@
       } else if (pos === 'LB') {
         if (isRun) { o.kind = 'run'; o.carrier = 'RB'; o.yards = ri(-1, 3); o.by = s.role; o.fumble = true; o.recD = true; o.ret = R() < 0.3 ? ri(25, 70) : ri(0, 15); }
         else { o.kind = 'int'; o.target = pickTarget(); o.air = ri(3, 10); o.by = s.role; o.ret = ri(10, 55); }
+      } else if (pos === 'CB') {
+        if (R() < 0.55) { o.kind = 'int'; o.target = s.role === 'CB1' ? 'WR1' : 'WR2'; o.air = off === 'short' ? ri(5, 11) : ri(18, 36); o.by = s.role; o.ret = ri(5, 50); }
+        else { o.kind = 'incomplete'; o.target = s.role === 'CB1' ? 'WR1' : 'WR2'; o.air = off === 'short' ? ri(5, 11) : ri(18, 36); o.by = s.role; o.breakup = true; o.crazy.title = 'Pass Breakup'; }
       } else if (pos === 'S') {
         o.kind = 'int'; o.target = pickTarget(); o.air = off === 'short' ? ri(5, 13) : ri(20, 38); o.by = s.role; o.ret = ri(15, 80);
       }
@@ -548,6 +566,11 @@
       if (res.td) res.banner.title = res.crazy.title.toUpperCase() + ' — TD!';
       txt = `★ ${res.crazy.title}! ` + txt;
     }
+    if (res.clash) {
+      const c = res.clash;
+      res.banner = { title: 'STAR CLASH!', sub: `${c.o} vs ${c.d} — ${c.winner} wins it`, tone: c.winSide === G.user ? 'good' : 'bad', star: true, clash: true, after: res.crazy ? res.crazy.title.toUpperCase() + (res.td ? ' — TD!' : '!') : null };
+      txt = `⚔️ STAR CLASH: ${c.o} vs ${c.d}, ${c.winner} wins! ` + txt.replace(/^★ [^!]*! /, '');
+    }
     res.text = `${offName}: ${GI.playName(off)} vs ${GI.playName(def)} — ${txt}`;
     G.stats[P].top += clockUse;
     G.clock = Math.max(0, G.clock - clockUse);
@@ -564,13 +587,28 @@
     const big = gain >= 18 || res.td;
     const defGood = res.turnover || res.kind === 'sack' || res.kind === 'incomplete' || (!res.turnover && gain <= 2);
     const invO = isRun ? ['RB', 'OL'] : isPass ? ['QB', 'WR', 'OL'] : ['QB', 'RB', 'WR'];
-    const invD = isRun ? ['LB', 'DL'] : ['S', 'DL', 'LB'];
+    const invD = isRun ? ['LB', 'DL'] : ['S', 'DL', 'LB', 'CB'];
+    const offBad = res.turnover || res.kind === 'incomplete' || res.kind === 'sack' || gain <= 0;
+    const defBad = !res.turnover && (gain >= 8 || res.td);
     [P, D].forEach((side) => {
       const t = G.teams[side];
       let mult = 0.6 + G.morale[side] / 125;
       if (G.weather === 'heat') mult *= 1.2;
       t.stars.forEach((s) => {
-        if (s.injured || s.armed) return;
+        if (s.injured) return;
+        // on-fire stars cool off after two bad plays in a row
+        if (s.meter >= 100) {
+          const bad = side === P ? offBad : defBad;
+          if (bad) {
+            s.bad = (s.bad || 0) + 1;
+            if (s.bad >= 2) {
+              s.meter = 70; s.armed = false; s.bad = 0;
+              res.cooled = (res.cooled || []).concat([{ side, name: GI.shortName(s.name), pos: s.pos }]);
+            }
+          } else s.bad = 0;
+          return;
+        }
+        if (s.armed) return;
         let add = R() < 0.5 ? 1 : 0;
         if (side === 'home' && R() < G.crowd.level / 200) add += 1;
         if (side === P && invO.includes(s.pos)) { if (offGood) add += 3; if (big) add += 4; }
