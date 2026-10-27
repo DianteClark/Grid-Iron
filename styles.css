@@ -825,3 +825,51 @@ button:focus:not(:focus-visible) { outline: none; }
 .effmods li.up b { color: var(--green); } .effmods li.dn b { color: var(--red); } .effmods i { display: block; font-style: normal; font-size: 11px; opacity: .75; }
 .effodds { margin-top: 12px; } .effodds p { margin: 6px 0 0; font-size: 13.5px; }
 .oddsbar { height: 10px; border-radius: 99px; background: var(--card3); overflow: hidden; } .oddsbar i { display: block; height: 100%; border-radius: 99px; }
+
+/* ================= v1: PLAYER CARDS ================= */
+.pcard { --fr: linear-gradient(160deg, #e3a36b, #8a4f24 55%, #c98a55); --fr2: #8a4f24;
+  position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 6px; text-align: left; padding: 10px 10px 9px; border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.18)), var(--card2); color: var(--ink);
+  box-shadow: 0 0 0 2px var(--fr2), 0 10px 22px rgba(0,0,0,.4); overflow: hidden; min-width: 0; transition: transform .1s; }
+.pcard::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 5px; background: var(--fr); }
+.pcard:active { transform: scale(.97); }
+.pcard.t-silver { --fr: linear-gradient(160deg, #f4f6fa, #8b95a7 55%, #d6dbe4); --fr2: #a5afc0; }
+.pcard.t-gold { --fr: linear-gradient(160deg, #ffe58a, #c99112 55%, #ffd24a); --fr2: #e0a91c; }
+.pcard.t-elite { --fr: linear-gradient(160deg, #c9b4ff, #6236d8 55%, #a98bff); --fr2: #7f56ef; }
+.pcard.t-star { --fr: linear-gradient(110deg, #ff5a6e, #ffc53d, #2ee27a, #4d8dff, #b06bff, #ff5a6e); --fr2: #ffc53d; box-shadow: 0 0 0 2px #ffc53d, 0 0 22px rgba(255,197,61,.45), 0 10px 22px rgba(0,0,0,.4); }
+.pcard.t-star::after { content: ''; position: absolute; inset: -40%; background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,.22) 50%, transparent 58%); animation: holo 3.2s linear infinite; pointer-events: none; }
+.pcard.hurt { opacity: .6; filter: grayscale(.6); }
+.pc-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.pc-ovr { font-family: var(--disp); font-weight: 900; font-style: italic; font-size: 30px; line-height: .9; }
+.pc-ovr small { display: block; font-size: 13px; font-style: normal; font-weight: 800; letter-spacing: .5px; color: var(--muted); margin-top: 2px; }
+.pc-tier { font-family: var(--disp); font-weight: 800; font-size: 11.5px; letter-spacing: 1px; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: var(--fr); color: #10131c; }
+.t-elite .pc-tier, .t-bronze .pc-tier { color: #fff; }
+.cp-ball { align-self: center; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font-family: var(--disp); font-weight: 900; font-style: italic; font-size: 24px;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--tc) 35%, #fff), var(--tc) 45%, color-mix(in srgb, var(--tc) 55%, #000)); box-shadow: 0 0 0 2px rgba(0,0,0,.5), 0 8px 14px rgba(0,0,0,.4); text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.cp-unit { align-self: center; display: flex; gap: 3px; height: 58px; align-items: center; }
+.cp-unit span { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--tc) 35%, #fff), var(--tc) 45%, color-mix(in srgb, var(--tc) 55%, #000)); box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
+.pc-name { font-family: var(--disp); font-weight: 800; font-size: 16.5px; line-height: 1.05; text-transform: uppercase; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-stats { display: grid; gap: 3px; }
+.cs { display: grid; grid-template-columns: 1fr 44px 22px; gap: 6px; align-items: center; font-size: 11px; font-weight: 700; color: var(--muted); }
+.cs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs i { height: 5px; border-radius: 99px; background: var(--bg2); overflow: hidden; } .cs i b { display: block; height: 100%; border-radius: 99px; background: var(--fr2); }
+.cs em { font-style: normal; font-family: var(--disp); font-weight: 800; font-size: 13px; color: var(--ink); text-align: right; }
+.pc-foot { font-size: 11px; font-weight: 600; color: var(--muted); text-align: center; }
+.pc-flags { position: absolute; top: 34px; right: 8px; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
+.cflag { font-family: var(--disp); font-weight: 800; font-size: 10.5px; letter-spacing: .4px; text-transform: uppercase; padding: 1px 6px; border-radius: 5px; background: var(--card3); }
+.cflag.red { background: var(--red); color: #fff; } .cflag.star { background: var(--gold); color: #261800; }
+.pcard.sm { padding: 8px 8px 7px; gap: 4px; border-radius: 13px; }
+.pcard.sm .pc-ovr { font-size: 22px; } .pcard.sm .cp-ball { width: 38px; height: 38px; font-size: 16px; } .pcard.sm .cp-unit { height: 38px; } .pcard.sm .cp-unit span { width: 14px; height: 14px; }
+.pcard.sm .pc-name { font-size: 13px; } .pcard.sm .pc-tier { display: none; } .pcard.sm .pc-foot { display: none; }
+.cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+.cstrip { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; margin-top: 6px; }
+.cgroup h3 { margin: 4px 2px 10px; }
+.units { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 10px; }
+.un { display: grid; grid-template-columns: 70px 1fr 26px; gap: 8px; align-items: center; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.un i { height: 6px; border-radius: 99px; background: var(--bg2); overflow: hidden; } .un i b { display: block; height: 100%; background: var(--green); border-radius: 99px; }
+.un em { font-style: normal; font-family: var(--disp); font-weight: 800; font-size: 15px; color: var(--ink); text-align: right; }
+.cdetail { display: grid; grid-template-columns: 170px 1fr; gap: 14px; align-items: start; }
+.cdetail .cd-info p { margin: 0 0 8px; font-size: 14px; }
+@media (max-width: 420px) { .cdetail { grid-template-columns: 1fr; } .cdetail .pcard { max-width: 220px; justify-self: center; width: 100%; } }
+.pc-ovr { color: #e3a36b; } .t-silver .pc-ovr { color: #e6ebf3; } .t-gold .pc-ovr { color: #ffd24a; } .t-elite .pc-ovr { color: #c3adff; } .t-star .pc-ovr { color: #ffc53d; }
+:root[data-theme="light"] .pc-ovr { color: var(--ink); }

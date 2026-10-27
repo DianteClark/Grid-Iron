@@ -32,10 +32,9 @@
       </div>
       <div class="menu">
         <div id="seasonCard"></div>
-        <div id="careerCard"></div>
         <button class="btn gold block" id="btnResume" hidden>▶ Resume Game</button>
         <button class="btn block" id="btnSeason">New Franchise</button>
-        <div class="menu-duo"><button class="btn green" id="btnCareer">Career Mode</button><button class="btn ghost" id="btnQuick">Quick Game</button></div>
+        <button class="btn ghost block" id="btnQuick">Exhibition</button>
         <p class="dailychip" id="dailyChip">⭐ First win today earns <b>+5 Legacy Points</b></p>
         <div class="menu2">
           <button class="btn ghost small" id="btnTrophies">🏆 Legacy <span class="lpb" id="lpBadge">0</span></button>
@@ -76,9 +75,8 @@
   <section class="screen" id="records"><div class="wrap stack" id="recordsBody" style="max-width:720px"></div></section>
   <section class="screen" id="tables"><div class="wrap stack" id="tablesBody" style="max-width:720px"></div></section>
 
-  <!-- LEGACY & CAREER -->
+  <!-- LEGACY -->
   <section class="screen" id="legacy"><div class="wrap stack" id="legacyBody" style="max-width:720px"></div></section>
-  <section class="screen" id="career"><div class="wrap stack" id="careerBody" style="max-width:620px"></div></section>
 
   <!-- HIGHLIGHT REEL -->
   <section class="screen" id="reel">
@@ -134,14 +132,6 @@
     </nav>
   </section>
 
-  <!-- CAREER GAME (key moments) -->
-  <section class="screen" id="cgame">
-    <div class="fieldwrap"><canvas id="cfield" aria-label="Football field"></canvas><div id="cbanner"></div></div>
-    <header class="scorebar sticker csb" id="csb"></header>
-    <button class="iconbtn cgquit" id="cgQuit" aria-label="Leave game">✕</button>
-    <div class="psheet sticker" id="psheet2"><div id="cpanel"></div></div>
-  </section>
-
   <!-- FINAL -->
   <section class="screen" id="final">
     <div class="wrap stack" id="finalBody" style="max-width:520px"></div>
@@ -153,12 +143,12 @@
 <script src="js/data.js"></script>
 <script src="js/stadium.js"></script>
 <script src="js/sim.js"></script>
+<script src="js/cards.js"></script>
 <script src="js/rating.js"></script>
 <script src="js/crests.js"></script>
 <script src="js/season.js"></script>
 <script src="js/league.js"></script>
 <script src="js/legacy.js"></script>
-<script src="js/career.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/anim.js"></script>
 <script src="js/ui.js"></script>

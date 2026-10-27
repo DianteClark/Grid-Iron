@@ -350,7 +350,49 @@
   }
 
   // ================= ROSTER =================
+  // ---------- v1: the roster as cards ----------
+  function renderCardRoster() {
+    const r = S.rosters[S.user], ut = T(S.user), team = SN.teamObj(S, S.user);
+    const tc = Object.assign({}, ut, GI.legacy.jersey(ut));
+    const inj = {};
+    SN.injuredFor(S, S.user).forEach(({ s, weeks, holdout }) => (inj[s.id] = holdout ? 'Holdout' : weeks >= 6 ? 'Out for season' : `Out ${weeks}w`));
+    const u = GI.ratings(team);
+    const order = { QB: 0, RB: 1, WR: 2, TE: 3, OL: 4, DL: 5, LB: 6, CB: 7, S: 8, KP: 9 };
+    const sorted = (l) => l.slice().sort((a, b) => order[a.pos] - order[b.pos] || b.rating - a.rating);
+    const grp = (title, list, bench) => list.length ? `<div class="cgroup"><h3>${title}</h3><div class="cgrid">${sorted(list).map((c) => U.cardHTML(c, tc, { id: true, hurt: inj[c.id], bench })).join('')}</div></div>` : '';
+    const off = r.stars.filter((c) => GI.POS[c.pos].side === 'O'), def = r.stars.filter((c) => GI.POS[c.pos].side === 'D'), st = r.stars.filter((c) => GI.POS[c.pos].side === 'ST');
+    const bench = (r.benchList || []).concat(r.bench ? [r.bench] : []);
+    const UN = [['Passing', 'pass'], ['Running', 'run'], ['O-line', 'ol'], ['Pass D', 'passD'], ['Run D', 'runD'], ['Pass rush', 'rush'], ['Kicking', 'st']];
+    $('#rosterBody').innerHTML = `<div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="roBack">←</button><h2>${esc(ut.name)} Roster</h2><span class="cashpill">${u.ovr} OVR</span></div>
+      <div class="sticker panel"><div class="row between"><span class="label">${r.stars.length}/16 starters · ${bench.length} bench</span><span class="label">Payroll ${money(SN.salaryTotal(S, S.user))} of ${money(S.cap)}</span></div>
+        <div class="units">${UN.map(([n, k]) => `<div class="un"><span>${n}</span><i><b style="width:${Math.max(4, (u[k] - 40) / 59 * 100)}%"></b></i><em>${u[k]}</em></div>`).join('')}</div>
+        <p class="muted" style="font-size:12.5px;margin:8px 0 0">Tap a card for its stats, contract and story. Stars rated 95+ become Star Players with a Show-Me meter.</p></div>
+      ${grp('Offense', off)}${grp('Defense', def)}${grp('Special teams', st)}${grp('Bench', bench, true)}
+      <div class="sticker panel"><h3>Staff</h3><div class="coach">${['hc', 'oc', 'dc', 'stc'].map((k) => { const c = r.coaches[k]; return `<div><span class="muted" style="font-size:11px">${c.role}</span><b>${esc(c.name)}</b>${c.rating} rtg${c.style ? ' · ' + (GI.OC_STYLES[c.style] || GI.DC_STYLES[c.style]) : ''}</div>`; }).join('')}</div></div>`;
+    $('#roBack').onclick = () => { renderHub(); show('hub'); };
+    $$('#rosterBody [data-card]').forEach((b) => (b.onclick = () => cardDetail(b.dataset.card)));
+  }
+  function cardDetail(id) {
+    const s = SN.allStars(S, S.user).find((x) => x.id === id); if (!s) return;
+    const ut = T(S.user), tc = Object.assign({}, ut, GI.legacy.jersey(ut));
+    const ss = S.sstats[s.id], c = s.career || {};
+    modal(`<div class="row between"><h2>${esc(s.name)}</h2>${closeBtn}</div>
+      <div class="cdetail">${U.cardHTML(s, tc)}<div class="cd-info">
+        <p><b>${GI.POS[s.pos].full}</b>${s.unit ? ' · a unit of ' + (s.pos === 'OL' ? 5 : 4) + ' linemen' : s.num != null ? ' · #' + s.num : ''}</p>
+        <p class="muted">Age ${s.age} · potential ${SN.grade(s.pot)} (${s.pot}) · ${s.yrsPro ? s.yrsPro + (s.yrsPro === 1 ? ' yr pro' : ' yrs pro') : 'rookie'}</p>
+        <p class="muted">${money(s.contract.salary)}/yr · ${s.contract.years} yr${s.contract.years === 1 ? '' : 's'} left</p>
+        ${(s.traits || []).length ? `<div class="traits">${traitChips(s)}</div>` : ''}
+        <p><span class="label">This season</span><br>${ss ? L.statLine(ss) : 'No stats yet'}</p>
+        <p><span class="label">Career</span><br>${c.seasons ? L.statLine(c) : 'First season'}</p>
+        ${s.star ? `<p class="kicktip ok">★ Star Player: ${GI.SHOWME[s.pos].name} — ${GI.SHOWME[s.pos].desc}</p>` : `<p class="muted" style="font-size:12.5px">${95 - s.rating} more overall to become a Star Player.</p>`}
+      </div></div>
+      <button class="btn ghost small block" id="cdRel" style="margin-top:12px">Release</button>`, (m) => {
+      m.querySelector('#mx').onclick = closeModal;
+      m.querySelector('#cdRel').onclick = () => confirmBox(`Release ${esc(s.name)}?`, `He becomes a free agent. You stop paying his ${money(s.contract.salary)}/yr — and he'll remember who cut him.`, 'Release', 'Keep him', () => { SN.release(S, s.id); renderRoster(); }, true);
+    });
+  }
   function renderRoster() {
+    if (S.rosters[S.user].v === 1) { renderCardRoster(); return; }
     const r = S.rosters[S.user], ut = T(S.user);
     const inj = {};
     SN.injuredFor(S, S.user).forEach(({ s, weeks, holdout }) => (inj[s.id] = holdout ? 'H' + weeks : weeks));

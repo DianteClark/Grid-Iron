@@ -30,7 +30,31 @@
     LB: { runD: 5, passD: 2 }, S: { passD: 4, runD: 2 }, CB: { passD: 6 }, DL: { rush: 6, runD: 3 }, KP: { st: 14 },
   };
 
+  // v1: every team is a lineup of 16 player cards (see cards.js), rated 64–74 to start
   GI.buildTeam = function (i) {
+    if (GI.cards) return buildCardTeam(i);
+    return buildStarTeam(i);
+  };
+  function buildCardTeam(i) {
+    const [city, name, abbr, c1, c2] = GI.TEAMS_BASE[i];
+    const r = GI.mulberry32(9001 + i * 7919);
+    const rr = (a, b) => a + Math.floor(r() * (b - a + 1));
+    const pick = (arr) => arr[Math.floor(r() * arr.length)];
+    const target = 63 + rr(0, 9);
+    const stars = GI.cards.assignRoles(GI.cards.lineup(target, r));
+    stars.forEach((c, k) => (c.id = abbr + k));
+    const cname = () => pick(GI.FIRST) + ' ' + pick(GI.COACH_LAST);
+    const coaches = {
+      hc: { role: 'Head Coach', name: cname(), rating: rr(58, 88) },
+      oc: { role: 'Offensive Coord.', name: cname(), rating: rr(55, 86), style: pick(['run', 'pass', 'balanced', 'balanced', 'gadget']) },
+      dc: { role: 'Defensive Coord.', name: cname(), rating: rr(55, 86), style: pick(['blitz', 'cover', 'press', 'balanced', 'balanced']) },
+      stc: { role: 'Special Teams', name: cname(), rating: rr(52, 84) },
+    };
+    const team = { v: 1, idx: i, city, name, abbr, c1, c2, slots: stars.map((c) => c.pos), stars, benchList: [], base: {}, coaches };
+    team.ovr = GI.ratings(team).ovr;
+    return team;
+  }
+  function buildStarTeam(i) {
     const [city, name, abbr, c1, c2] = GI.TEAMS_BASE[i];
     const r = GI.mulberry32(9001 + i * 7919);
     const rr = (a, b) => a + Math.floor(r() * (b - a + 1));
@@ -84,11 +108,12 @@
     const team = { idx: i, city, name, abbr, c1, c2, slots, stars, base, coaches };
     team.ovr = GI.ratings(team).ovr;
     return team;
-  };
+  }
 
   // ---------- dynamic (franchise) rosters ----------
   GI.ROLE_MAP = ROLE_MAP; GI.NUMS = NUMS;
   GI.assignRoles = function (stars) {
+    if (GI.cards && stars.some((s) => s.stats)) return GI.cards.assignRoles(stars);
     const use = {};
     const order = ['KP', 'QB', 'RB', 'WR', 'TE', 'OL', 'LB', 'DL', 'S', 'CB'];
     stars.slice().sort((a, b) => order.indexOf(a.pos) - order.indexOf(b.pos) || b.rating - a.rating).forEach((s) => {
@@ -109,12 +134,14 @@
     });
     GI.assignRoles(stars);
     const team = { idx: i, city, name, abbr, c1, c2, glyph: id.glyph || (GI.TEAM_GLYPH ? GI.TEAM_GLYPH[i] : null), slots: stars.map((s) => s.pos), stars: stars.filter((s) => s.role), base: Object.assign({}, data.base), coaches: JSON.parse(JSON.stringify(data.coaches)), identity: data.identity || null, college: !!id.college };
+    if (stars.some((s) => s.stats)) { team.v = 1; team.benchList = (data.benchList || []).map((b) => Object.assign({}, b, { injured: false, armed: false })); }
     if (data.bench) team.bench = Object.assign({}, data.bench, { meter: ri(10, 30), armed: false, injured: false });
     team.ovr = GI.ratings(team).ovr;
     return team;
   };
 
   GI.ratings = function (team) {
+    if (team.v === 1 && GI.cards) return GI.cards.units(team);
     const r = Object.assign({}, team.base);
     team.stars.forEach((s) => {
       if (s.injured) return;
@@ -129,7 +156,10 @@
   GI.TEAMS = GI.TEAMS_BASE.map((_, i) => GI.buildTeam(i));
 
   GI.shortName = (n) => { const p = n.split(' '); return p[0][0] + '. ' + p.slice(1).join(' '); };
-  GI.starAt = (team, role) => team.stars.find((s) => s.role === role && !s.injured);
+  GI.starAt = (team, role) => { const r = GI.unitRole ? GI.unitRole(role) : role; return team.stars.find((s) => s.role === r && !s.injured); };
+  // v1: only Star Players (95+) carry a Show-Me meter; older star teams: everyone does
+  const hasMeter = (t, s) => t.v !== 1 || s.star;
+  GI.hasMeter = hasMeter;
   const GENERIC = { QB: 'the QB', RB: 'the RB', WR1: 'the X receiver', WR2: 'the Z receiver', WR3: 'the slot', TE: 'the tight end', MLB: 'the Mike', WLB: 'the Will', SLB: 'the Sam', FS: 'the free safety', SS: 'the strong safety', CB1: 'the corner', CB2: 'the corner', DE1: 'the end', DE2: 'the end', DT1: 'the tackle', DT2: 'the tackle', K: 'the kicker', KR: 'the returner' };
   GI.who = function (team, role) {
     const s = GI.starAt(team, role);
@@ -460,11 +490,11 @@
   // ---------- CPU brains ----------
   // how hard the CPU leans on your tendencies (softened in v0.5 — it was out-reading players and winning
   // the snaps that fill meters). You get the same read on it via the tendency strip.
-  const ADAPT = { rookie: 0, pro: 4, legend: 8, sim: 4 };
+  const ADAPT = { rookie: 0, pro: 4, legend: 8, sim: 0 }; // sim: CPU vs CPU — neither side reads the other
   // v1 balance knobs (tuned by simulation: see the design doc's win-rate targets)
-  // measured over 500-game runs: +5 wins ~67%, +10 ~79%, +15 ~85%, +20 ~89%, +25 ~91%;
-  // a perfect play-caller (who somehow knows every CPU call) on a team 20 points worse wins ~26%
-  GI.BAL = GI.BAL || { talent: 0.12, knee: 12, call: 0.42, potw: 0.3, noise: 0.4 };
+  // measured on v1 card teams (300-game runs, tools/balance.js): +5 wins ~73%, +10 ~79%, +20 ~88%,
+  // ~16.5 points per team; a perfect play-caller (who somehow knows every CPU call) 20 points worse wins ~24%
+  GI.BAL = GI.BAL || { talent: 0.09, knee: 10, call: 0.32, potw: 0.3, noise: 0.4, off: 0.4, boom: 0.08 };
   // v1: difficulty is mostly how smart the CPU is (ADAPT); this per-snap nudge stays small so talent still decides
   const DIFF_ADV = { rookie: -0.2, pro: 0, legend: 0.12, sim: 0 };
   function cpuFourth(G) {
@@ -858,6 +888,7 @@
     a += venueAdv(G, P, off, isRun);
     if (G.weather === 'heat' && G.q >= 4) a += (ro.ovr - rd.ovr) / 40;
     a += (P === G.user ? -1 : 1) * DIFF_ADV[G.diff];
+    a += BAL.off || 0; // v1: a small league-wide lean to the offense (no more Show-Me fireworks on every roster)
     a += gauss(0, BAL.noise);
     a = clamp(a, -4, 4);
     res.adv = a;
@@ -869,7 +900,7 @@
       let best = null;
       const duo = G.duo && G.duo[side];
       team.stars.forEach((s) => {
-        if (s.injured) return;
+        if (s.injured || !hasMeter(team, s)) return;
         const list = GI.SHOWME[s.pos][sideKey];
         if (!list || !list.includes(off)) return;
         if (s.armed) armedUsed.push(s);
@@ -1006,6 +1037,15 @@
           else { o.kind = 'run'; o.carrier = 'RB'; o.yards = -ri(2, 6); o.fumble = true; o.recD = true; o.ret = ri(0, 15); o.by = pickDef(['DE1', 'DE2', 'WLB']); }
         } else if (r < 0.45) { o.kind = 'incomplete'; o.air = ri(15, 35); o.by = pickDef(['FS', 'SS']); }
         else { o.kind = 'sack'; o.yards = -ri(3, 9); o.by = pickDef(['DE1', 'DE2', 'MLB', 'WLB']); }
+      }
+    }
+    // v1 breakaways: speed in the open field turns a good play into a big one (no meter needed)
+    if (!crazy && BAL.boom && ((o.kind === 'run' && o.yards >= 3) || (o.kind === 'pass' && !o.fumble))) {
+      const carrier = o.kind === 'run' ? GI.starAt(ot, 'RB') : GI.starAt(ot, o.target);
+      const spd = carrier ? (carrier.stats && carrier.stats.spd) || carrier.rating : 65;
+      if (R() < BAL.boom * (1 + Math.max(-0.6, a) * 0.35) * (spd / 75)) {
+        if (o.kind === 'run') o.yards += ri(12, 45); else o.yac = (o.yac || 0) + ri(12, 45);
+        o.boom = true;
       }
     }
     Object.assign(res, o);
@@ -1171,7 +1211,7 @@
       mult *= 1 + Math.max(0, momFor(G, side)) / 500;
       if (G.adj[side] === 'tempo') mult *= 1.15;
       t.stars.forEach((s) => {
-        if (s.injured) return;
+        if (s.injured || !hasMeter(t, s)) return;
         // only stars who were actually on the field this snap
         if (side === P && !OFFP.includes(s.pos)) return;
         if (side === D && !DEFP.includes(s.pos)) return;

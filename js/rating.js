@@ -70,7 +70,7 @@
     return { base: base.ovr, units: base, mods, d, eff: Math.round(base.ovr + all) };
   };
   // the measured win curve (GI.BAL), for showing odds before kickoff
-  const CURVE = [[0, 50], [5, 67], [10, 79], [15, 85], [20, 89], [25, 91], [40, 96]];
+  const CURVE = [[0, 50], [5, 72], [10, 79], [15, 84], [20, 88], [25, 91], [40, 96]];
   GI.winOdds = function (gap) {
     const g = Math.abs(gap);
     let p = 96;

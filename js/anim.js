@@ -307,10 +307,15 @@
     }
     mkPlayer(id, p, team, color) {
       const role = id.slice(2);
-      const star = team.stars.find((s) => s.role === role && !s.injured);
+      const card = GI.starAt ? GI.starAt(team, role) : team.stars.find((s) => s.role === role && !s.injured);
+      const v1 = team.v === 1;
       const stripe = color === team.c1 ? team.c2 : team.c1;
-      const name = star ? star.name.split(' ').slice(-1)[0] : GI.LAST[hashStr((team.abbr || '') + role) % GI.LAST.length];
-      return { id, role, name: name.toUpperCase(), side: id[0], rx: p[0], ry: p[1], color, stripe, glyph: team.glyph || GI.TEAM_GLYPH[team.idx], star: !!star, num: star ? star.num : null, fire: !!star && (star.meter >= 100 || star.armed), armed: !!star && star.armed, ang: null };
+      const h = hashStr((team.abbr || '') + role);
+      // v1: every player is a card — real names and numbers for all; linemen get a number of their own
+      const name = card && !card.unit ? card.name.split(' ').slice(-1)[0] : GI.LAST[h % GI.LAST.length];
+      const num = card && card.num != null ? card.num : (GI.unitRole && GI.unitRole(role) !== role ? (role[0] === 'D' ? 90 + (h % 10) : 60 + (h % 20)) : null);
+      const star = v1 ? !!(card && card.star) : !!card;
+      return { id, role, name: name.toUpperCase(), side: id[0], rx: p[0], ry: p[1], color, stripe, glyph: team.glyph || GI.TEAM_GLYPH[team.idx], star, tier: card && card.tier, num: v1 || star ? num : null, fire: star && (card.meter >= 100 || card.armed), armed: star && card.armed, ang: null };
     }
     toAbs(rx, ry) {
       const { los, dir } = this.ctxPlay;
@@ -566,7 +571,7 @@
         g.lineTo(x + Math.cos(a + 0.5) * R * 0.86, y + Math.sin(a + 0.5) * R * 0.86);
         g.lineTo(x + Math.cos(a - 0.5) * R * 0.86, y + Math.sin(a - 0.5) * R * 0.86);
         g.closePath(); g.fill();
-        if (p.star && p.num != null && R >= 6) {
+        if (p.num != null && R >= 6) {
           g.font = F(R * 1.05); g.textAlign = 'center'; g.textBaseline = 'middle';
           g.fillStyle = 'rgba(0,0,0,.35)'; g.fillText(String(p.num), x + 0.8, y + 1.6);
           g.fillStyle = GI.inkOn(p.color); g.fillText(String(p.num), x, y + 0.8);

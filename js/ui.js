@@ -56,16 +56,15 @@
     const prev = $('.screen.on');
     if (prev && prev.id !== id) toastQ.length = 0; // stale news from the last screen
     $$('.screen').forEach((s) => s.classList.toggle('on', s.id === id));
-    wakeOn(id === 'game' || id === 'cgame');
+    wakeOn(id === 'game');
     if (field) { field.calm = !!pref('calm', false); field.highContrast = !!pref('hiLines', false); }
     closePop();
     if (id === 'game') {
       if (field) requestAnimationFrame(() => { field.resize(); updateInsets(); });
       GI.audio.scene('game', G ? Math.min(100, G.crowd.level + (G.venue && G.weather === 'dome' ? 12 : 0)) : 0);
-    } else if (id === 'cgame') GI.audio.scene('game', 60);
-    else GI.audio.scene('menu');
+    } else GI.audio.scene('menu');
     const el = $('#' + id); if (el) el.scrollTop = 0;
-    if (id !== 'game' && id !== 'cgame' && id !== 'paper') setTimeout(flushRewards, 400);
+    if (id !== 'game' && id !== 'paper') setTimeout(flushRewards, 400);
   }
   // toasts queue up instead of stomping on each other (max 3 waiting)
   const toastQ = []; let toastOn = false;
@@ -114,7 +113,7 @@
     sfx('tap');
   }, true);
   // ---------- back: the on-screen ← and the phone's back gesture do the same thing ----------
-  const BACKS = { pick: '#pickBack', pregame: '#pgBack', hub: '#hubBack', draft: '#drBack', roster: '#roBack', office: '#ofBack', trade: '#trBack', records: '#rcBack', tables: '#tbBack', legacy: '#albBack, #lgBack', career: '#crBack', reel: '#reelDone', cgame: '#cgQuit' };
+  const BACKS = { pick: '#pickBack', pregame: '#pgBack', hub: '#hubBack', draft: '#drBack', roster: '#roBack', office: '#ofBack', trade: '#trBack', records: '#rcBack', tables: '#tbBack', legacy: '#albBack, #lgBack', reel: '#reelDone' };
   function goBack() {
     if ($('#modal').classList.contains('on')) { if (!$('#modal').dataset.lock) closeModal(); return true; }
     const cur = $('.screen.on'); if (!cur) return false;
@@ -164,13 +163,40 @@
   document.addEventListener('visibilitychange', () => {
     const cur = $('.screen.on');
     if (document.visibilityState === 'hidden') { if (G && !G.over && cur && cur.id === 'game') GI.save(G); }
-    else if (cur && (cur.id === 'game' || cur.id === 'cgame')) wakeOn(true);
+    else if (cur && cur.id === 'game') wakeOn(true);
   });
   const closeBtn = '<button class="iconbtn" id="mx" aria-label="Close">✕</button>';
   const confirmBox = (title, body, yes, no, onYes, danger) => modal(`<h2>${title}</h2><p class="muted">${body}</p><div style="display:grid;gap:10px"><button class="btn ${danger ? 'red' : 'green'} block" id="cf1">${yes}</button><button class="btn ghost block" id="cf2">${no}</button></div>`, (s) => {
     s.querySelector('#cf1').onclick = () => { closeModal(); onYes(); };
     s.querySelector('#cf2').onclick = closeModal;
   });
+
+  // ---------- v1 player cards ----------
+  const TIER_NAME = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', elite: 'Elite', star: 'Star Player' };
+  function cardHTML(c, team, opts) {
+    opts = opts || {};
+    const CD = GI.cards;
+    const tier = c.tier || CD.tierOf(c.rating).key;
+    const col = team ? (team.c1 || '#3a4766') : '#3a4766', ink = GI.inkOn(col);
+    const stats = c.stats ? CD.STATS[c.pos].map(([k, n]) => `<div class="cs"><span>${n}</span><i><b style="width:${Math.max(4, (c.stats[k] - 35) / 64 * 100)}%"></b></i><em>${c.stats[k]}</em></div>`).join('') : '';
+    const portrait = c.unit
+      ? `<div class="cp-unit">${Array.from({ length: c.pos === 'OL' ? 5 : 4 }, () => `<span style="--tc:${col}"></span>`).join('')}</div>`
+      : `<div class="cp-ball" style="--tc:${col};color:${ink}">${c.num != null ? c.num : ''}</div>`;
+    const flags = [opts.hurt ? `<span class="cflag red">${esc(opts.hurt)}</span>` : '', opts.bench ? '<span class="cflag">Bench</span>' : '', c.star ? '<span class="cflag star">★ Star</span>' : ''].join('');
+    return `<button class="pcard t-${tier} ${opts.small ? 'sm' : ''} ${opts.hurt ? 'hurt' : ''}" ${opts.id ? `data-card="${esc(c.id)}"` : ''} aria-label="${esc(c.name)}, ${GI.POS[c.pos].label}, ${c.rating} overall, ${TIER_NAME[tier]}">
+      <span class="pc-top"><span class="pc-ovr">${c.rating}<small>${GI.POS[c.pos].label}</small></span><span class="pc-tier">${TIER_NAME[tier]}</span></span>
+      ${portrait}
+      <span class="pc-name">${esc(opts.small && !c.unit ? GI.shortName(c.name) : c.name)}</span>
+      ${opts.small ? '' : `<span class="pc-stats">${stats}</span>`}
+      <span class="pc-foot">${c.age ? `age ${c.age}` : ''}${c.pot ? ` · POT ${SN.grade(c.pot)}` : ''}${(c.traits || []).map((k) => GI.TRAITS[k] ? ' ' + GI.TRAITS[k].icon : '').join('')}</span>
+      ${flags ? `<span class="pc-flags">${flags}</span>` : ''}
+    </button>`;
+  }
+  // a quick roster look: a handful of cards, best first
+  function lineupStrip(team, n) {
+    const list = (team.stars || []).slice().sort((a, b) => b.rating - a.rating).slice(0, n || 6);
+    return `<div class="cstrip">${list.map((c) => cardHTML(c, team, { small: true })).join('')}</div>`;
+  }
 
   // ---------- title ----------
   function refreshTitle() {
@@ -183,12 +209,6 @@
       $('#seasonCard').innerHTML = `<button class="sticker scard" id="btnContinue">${helmet(ut, 'md')}<span><b>Continue Franchise · Year ${S.year}</b><small>${ut.name} · ${SN.recStr(S.rec[S.user])} · ${status}</small></span><span class="go">▶</span></button>`;
       $('#btnContinue').onclick = () => { S = SN.load(); GI.UI.renderHub(); show('hub'); };
     } else $('#seasonCard').innerHTML = '';
-    const C = GI.career.load();
-    if (C && C.phase !== 'retired') {
-      const where = C.phase === 'college' ? `${C.p.college} · College` : C.phase === 'pro' && C.pro ? `${T(C.pro.team).name} · Year ${C.pro.year}` : C.phase === 'franchise' ? 'In your franchise draft' : C.phase === 'draft' ? 'Draft day' : 'Combine';
-      $('#careerCard').innerHTML = `<button class="sticker scard" id="btnCareerGo"><span class="cc-num">${C.p.num}</span><span><b>Continue Career · ${esc(C.p.name)}</b><small>${GI.POS[C.p.pos].label} · ${C.p.rating} OVR · ${where}</small></span><span class="go">▶</span></button>`;
-      $('#btnCareerGo').onclick = () => GI.UI.openCareer();
-    } else $('#careerCard').innerHTML = '';
     const lp = GI.legacy.get();
     $('#lpBadge').textContent = lp.lp;
     $('#dailyChip').hidden = lp.daily === new Date().toDateString();
@@ -199,7 +219,6 @@
     if (SN.load()) confirmBox('Start a new franchise?', 'Your current franchise will be replaced. (Your Legacy Points, album and all-time Hall of Fame stay.)', 'Start New Franchise', 'Keep My Franchise', go, true);
     else go();
   };
-  $('#btnCareer').onclick = () => GI.UI.openCareer(true);
   $('#btnResume').onclick = () => { const g = GI.load(); if (g) { G = g; if (G.seasonGame) S = SN.load(); enterGame(); } };
   $('#btnHelp').onclick = () => showHelp();
   $('#btnSettings').onclick = () => showSettings();
@@ -475,7 +494,9 @@
       <div class="coach">${['hc', 'oc', 'dc', 'stc'].map((k) => { const c = ut.coaches[k]; return `<div><span class="muted" style="font-size:11px">${c.role}</span><b>${c.name}</b>${c.rating} rtg${c.style ? ' · ' + (GI.OC_STYLES[c.style] || GI.DC_STYLES[c.style]) : ''}</div>`; }).join('')}</div>`;
     const tr = (s) => (s.traits || []).map((k) => GI.TRAITS[k] ? `<i title="${GI.TRAITS[k].name}">${GI.TRAITS[k].icon}</i>` : '').join('');
     const sl = (t) => `<div class="starlist">${t.stars.map((s) => `<span class="schip ${s.injured ? 'hurt' : ''}"><b>${GI.POS[s.pos].label}</b>${GI.shortName(s.name)} <span class="muted">${s.injured ? 'OUT' : s.rating}</span>${tr(s)}</span>`).join('')}</div>`;
-    $('#pgStars').innerHTML = `<h3>★ Star Players</h3><div class="label">${ut.name}</div>${sl(ut)}<div class="label" style="margin-top:12px">${ot.name}</div>${sl(ot)}`;
+    $('#pgStars').innerHTML = ut.v === 1
+      ? `<h3>🃏 Top cards</h3><div class="label">${esc(ut.name)}</div>${lineupStrip(teamColors(ut), 6)}<div class="label" style="margin-top:12px">${esc(ot.name)}</div>${lineupStrip(ot, 6)}`
+      : `<h3>★ Star Players</h3><div class="label">${ut.name}</div>${sl(ut)}<div class="label" style="margin-top:12px">${ot.name}</div>${sl(ot)}`;
     const km = !!GI.prefs.get().keyMode;
     $('#pgMode').innerHTML = `<h3>🎮 How do you want to play?</h3><div class="seg" id="modeSeg"><button data-v="0" class="${km ? '' : 'on'}">Every snap</button><button data-v="1" class="${km ? 'on' : ''}">Key moments</button></div>
       <p class="muted" style="margin:8px 0 0;font-size:13px">${km ? 'The routine snaps sim on their own. You take over in the red zone, on 4th downs, in the two-minute drill, in crunch time and whenever a star catches fire.' : 'You call every snap on offense and defense. You can still sim a drive or skip to halftime from the ☰ menu.'}</p>`;
@@ -530,7 +551,7 @@
     const ps = $('#psheet'), open = ps.classList.contains('open');
     const landscape = W > H * 1.08 && W >= 560;
     rail.style.top = (landscape ? sb.offsetTop : sb.offsetTop + sb.offsetHeight + 6) + 'px';
-    const railBottom = rail.offsetTop + rail.offsetHeight;
+    const railBottom = rail.hidden ? sb.offsetTop + sb.offsetHeight : rail.offsetTop + rail.offsetHeight;
     $('#railPop').style.top = (railBottom + 6) + 'px';
     ps.style.top = landscape ? (railBottom + 8) + 'px' : '';
     const st = $('#status');
@@ -607,7 +628,8 @@
   let popId = null;
   function renderRail() {
     const t = G.teams[G.user];
-    const list = t.stars.slice().sort((a, b) => GROUP[a.pos] - GROUP[b.pos]);
+    const list = t.stars.filter((s) => GI.hasMeter(t, s)).sort((a, b) => GROUP[a.pos] - GROUP[b.pos]);
+    $('#rail').hidden = !list.length; // v1: only Star Players (95+) carry a meter
     let last = -1, html = '';
     list.forEach((s) => {
       const g = GROUP[s.pos];
@@ -1247,11 +1269,11 @@
       ${row('calm', 'Reduce motion', 'No screen shake or flashes on big plays', false)}
       ${row('hiLines', 'High-contrast lines', 'White line of scrimmage, orange line to gain', false)}
       <div class="set-row"><div><b>Theme</b><small>Menus and panels</small></div><div class="seg" id="themeSeg" style="width:170px"><button data-v="auto">Night</button><button data-v="light">Day</button></div></div>
-      <div class="backup"><b>💾 Backup & restore</b><p class="muted" style="margin:4px 0 10px;font-size:13px">Phones can clear website data. Save a backup of your franchise, career, album and Legacy Points — and restore it on any device.</p>
+      <div class="backup"><b>💾 Backup & restore</b><p class="muted" style="margin:4px 0 10px;font-size:13px">Phones can clear website data. Save a backup of your franchise, album and Legacy Points — and restore it on any device.</p>
         <div class="menu-sims"><button class="btn gold small" id="bkFile">⬇ Download file</button><button class="btn ghost small" id="bkCode">📋 Copy code</button></div>
         <div class="menu-sims" style="margin-top:8px"><button class="btn ghost small" id="bkLoad">⬆ Restore file</button><button class="btn ghost small" id="bkPaste">📥 Paste code</button></div>
         <input type="file" id="bkInput" accept=".json,.txt,application/json" hidden></div>
-      <div class="danger"><b>Reset all data</b><p class="muted" style="margin:4px 0 10px;font-size:13px">Deletes your franchise, career, saved game, trophies, album, Legacy Points and every setting on this device. This can't be undone.</p><button class="btn red small" id="resetBtn">Reset everything</button></div>`, (s) => {
+      <div class="danger"><b>Reset all data</b><p class="muted" style="margin:4px 0 10px;font-size:13px">Deletes your franchise, saved game, trophies, album, Legacy Points and every setting on this device. This can't be undone.</p><button class="btn red small" id="resetBtn">Reset everything</button></div>`, (s) => {
       s.querySelector('#mx').onclick = fromGame ? showMenu : closeModal;
       s.querySelectorAll('.switch').forEach((b) => (b.onclick = () => {
         const on = !b.classList.contains('on');
@@ -1315,7 +1337,7 @@
 
   // shared with the other UI files
   GI.UI = {
-    $, $$, esc, show, toast, modal, closeModal, closeBtn, confirmBox, helmet, sfx, icon, sleep, ord, T, flushRewards,
+    $, $$, esc, show, toast, modal, closeModal, closeBtn, confirmBox, helmet, sfx, icon, sleep, ord, T, flushRewards, cardHTML, lineupStrip,
     money: (x) => SN.money(x), showPaper, showArchive, startPregame, refreshTitle, showSettings, showHelp,
     getS: () => S, setS: (x) => (S = x), getG: () => G, setG: (x) => (G = x), getField: () => field,
   };

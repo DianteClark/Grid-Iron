@@ -4,12 +4,12 @@
   const { ri, clamp, wpick, gauss } = GI.util;
   const R = Math.random;
   const pick = (a) => a[Math.floor(R() * a.length)];
-  const KEY = 'gridiron_franchise_v1';
+  const KEY = 'gridiron_franchise_v2'; // v1.0 card franchises start fresh
   const CONFS = ['Iron', 'Steel'];
   const DIVS = ['North', 'South', 'East', 'West'];
   const ROUND_NAMES = ['Wild Card Round', 'Divisional Round', 'Conference Championships', 'THE IRON-BOWL'];
   const REQUIRED = ['KP', 'QB', 'LB'];
-  const CAP = { KP: 1, QB: 1, RB: 1, WR: 3, TE: 1, OL: 3, LB: 3, DL: 3, S: 2, CB: 2 };
+  const CAP = { KP: 1, QB: 1, RB: 1, WR: 3, TE: 1, OL: 1, LB: 3, DL: 1, S: 2, CB: 2 }; // v1: the 16-card lineup
   const ALLPOS = Object.keys(CAP);
   const OFFENSE = ['QB', 'RB', 'WR', 'TE', 'OL'];
   const UPGRADES = {
@@ -29,7 +29,7 @@
   const S_ = {
     CONFS, DIVS, ROUND_NAMES, REQUIRED, CAP, UPGRADES, confOf, divOf,
     load() { try { const s = localStorage.getItem(KEY); return s ? GI.league.migrate(JSON.parse(s)) : null; } catch (e) { console.error(e); return null; } },
-    save(S) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} },
+    save(S) { if (GI.cards && S && S.rosters) GI.cards.syncAll(S); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} },
     clear() { try { localStorage.removeItem(KEY); } catch (e) {} },
   };
   GI.season = S_;
@@ -59,7 +59,8 @@
   }
   S_._mkPlayer = mkPlayer;
   function askSalary(p) {
-    let a = 1 + (p.rating - 66) * 0.32 + (p.ego > 75 ? 1 : 0) + (p.age < 27 ? 0.5 : 0);
+    let a = (p.unit ? 1.6 : 1) * (0.8 + Math.max(0, p.rating - 60) * 0.22) + (p.rating >= 85 ? (p.rating - 84) * 0.4 : 0);
+    if (!p.unit) a += (p.ego > 75 ? 0.6 : 0) + (p.age < 27 ? 0.3 : 0);
     if (p.raise) a *= 1.2; // award winners want to get paid
     if ((p.traits || []).includes('diva')) a += 0.5;
     return r1(clamp(a, 0.8, 16));
@@ -84,7 +85,7 @@
   // can this team add a player at pos? → 'starter' | 'bench' | null
   S_.slotFor = function (S, i, pos) {
     const r = S.rosters[i];
-    if (r.stars.length < 8 && posCount(r, pos) < CAP[pos]) return 'starter';
+    if (r.stars.length < 16 && posCount(r, pos) < CAP[pos]) return 'starter';
     if (!r.bench) return 'bench';
     return null;
   };
@@ -141,25 +142,21 @@
       bracket: null, champion: null, history: [], seasonStats: { gp: 0, pf: 0, pa: 0 }, records: { titles: 0 },
       fid: 'f' + Date.now().toString(36),
     };
+    // v1: every franchise opens with a full 16-card lineup (team overall ~63–72)
     for (let i = 0; i < 32; i++) {
-      const src = GI.TEAMS[i];
-      const rr = GI.mulberry32(4242 + i * 131);
-      const b = (lo, hi) => lo + Math.floor(rr() * (hi - lo + 1));
-      S.rosters.push({
-        stars: [], bench: null,
-        // fewer stars than the classic rosters, so the base squad is a little stronger
-        base: { run: b(62, 72), pass: b(62, 72), ol: b(62, 72), runD: b(62, 72), passD: b(62, 72), rush: b(62, 72), st: b(60, 70) },
-        coaches: JSON.parse(JSON.stringify(src.coaches)),
+      const src = GI.buildTeam(i);
+      const stars = src.stars.map((c) => {
+        const p = Object.assign({}, c, { id: 'p' + (S.nextId++), college: pick(GI.COLLEGES), yrsPro: Math.max(0, c.age - 22), rookie: false, career: { seasons: 0, gp: 0 }, formerTeams: [], awards: [], spark: 0.03 });
+        delete p.role; delete p.meter; delete p.armed; delete p.injured;
+        if (!p.unit) S.names[p.name] = true;
+        p.contract = { years: ri(1, 4), salary: askSalary(p), active: true };
+        return p;
       });
-    }
-    // a few CPU franchises open with a veteran already signed (rosters start at 3–5 stars)
-    for (let i = 0; i < 32; i++) {
-      if (i === o.user || R() > 0.3) continue;
-      const pos = pick(['RB', 'WR', 'TE', 'OL', 'DL', 'S', 'CB']);
-      addToRoster(S, i, mkPlayer(S, pos, 'vet'), ri(1, 3));
+      S.rosters.push({ v: 1, stars, benchList: [], bench: null, base: {}, coaches: JSON.parse(JSON.stringify(src.coaches)) });
     }
     GI.league.init(S);
-    S.draft = makeDraft(S, true, 4);
+    S.cap = 62;
+    S.phase = 'camp'; S.draft = null;
     S_.save(S);
     return S;
   };
@@ -761,7 +758,7 @@
     const salaries = S_.salaryTotal(S, S.user);
     const upkeep = Object.values(S.up).reduce((t, l) => t + (l - 1) * 1.1, 0);
     const staff = r1(GI.league.staffCost(S, S.user));
-    const tv = 25;
+    const tv = S.v >= 3 || S.rosters[0].v === 1 ? 45 : 25;
     const rev = tv + S.fin.tickets + S.fin.playoffs + S.fin.bonus;
     const exp = salaries + upkeep + staff;
     S.cash += tv - salaries - upkeep - staff; // gates & bonuses were banked as they came in
