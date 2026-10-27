@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <title>Grid Iron</title>
+  <meta name="description" content="Grid Iron — a sticker-style football franchise sim.">
+  <meta name="theme-color" content="#f3eee3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#17191e" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Grid Iron">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- TITLE -->
+  <section class="screen on" id="title">
+    <div class="wrap">
+      <div class="logo">
+        <div class="ball"><svg width="70" height="70" viewBox="0 0 64 64" aria-hidden="true"><g transform="rotate(-35 32 32)"><ellipse cx="32" cy="32" rx="27" ry="16" fill="#fff"/><ellipse cx="32" cy="32" rx="23.5" ry="12.5" fill="#8b4a24"/><path d="M20 32h24M26 28v8M30 28v8M34 28v8M38 28v8" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></g></svg></div>
+        <h1>GRID<span>IRON</span></h1>
+        <p>Sticker-sized football. Big-time drama.</p>
+      </div>
+      <div class="menu">
+        <button class="btn gold block" id="btnResume" hidden>▶ Resume Game</button>
+        <button class="btn block" id="btnQuick">Quick Game</button>
+        <button class="btn ghost block soon" disabled>Franchise Mode</button>
+        <button class="btn ghost block" id="btnHelp">How to Play</button>
+      </div>
+      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.1 · Phase 1 · Add to your Home Screen to play like an app</p>
+    </div>
+  </section>
+
+  <!-- TEAM PICK -->
+  <section class="screen" id="pick">
+    <div class="wrap">
+      <div class="topbar"><button class="iconbtn" data-back="title" aria-label="Back">←</button><h2 id="pickTitle">Pick your team</h2></div>
+      <div class="sticker settings" id="settings">
+        <div class="row"><span class="label">Venue</span><div class="seg" data-set="home"><button data-v="1" class="on">Home</button><button data-v="0">Away</button></div></div>
+        <div class="row"><span class="label">Quarters</span><div class="seg" data-set="qMin"><button data-v="5" class="on">5 min</button><button data-v="8">8 min</button><button data-v="15">15 min</button></div></div>
+        <div class="row"><span class="label">Level</span><div class="seg" data-set="diff"><button data-v="rookie">Rookie</button><button data-v="pro" class="on">Pro</button><button data-v="legend">Legend</button></div></div>
+      </div>
+      <div class="teams" id="teamGrid"></div>
+    </div>
+    <div class="dock" id="pickDock" hidden><button class="btn gold" id="pickNext">Next</button></div>
+  </section>
+
+  <!-- PREGAME -->
+  <section class="screen" id="pregame">
+    <div class="wrap stack" style="padding-bottom:90px">
+      <div class="topbar" style="margin-bottom:0"><button class="iconbtn" data-back="pick" aria-label="Back">←</button><h2>Game Day</h2></div>
+      <div class="sticker matchup" id="pgMatch"></div>
+      <div class="conds" id="pgConds"></div>
+      <div class="sticker bars" id="pgBars"></div>
+      <div class="sticker panel" id="pgPotw"></div>
+      <div class="sticker panel" id="pgScout"></div>
+      <div class="sticker panel" id="pgStars"></div>
+    </div>
+    <div class="dock"><button class="btn green" id="btnKick">Kick Off ▶</button></div>
+  </section>
+
+  <!-- GAME -->
+  <section class="screen" id="game">
+    <header class="sticker scorebug" id="sb"></header>
+    <div class="fieldwrap sticker" id="fieldwrap">
+      <canvas id="field" aria-label="Football field"></canvas>
+      <div class="hud">
+        <div><span class="chipx" id="hudWx"></span></div>
+        <div><button id="btnSpeed" aria-label="Animation speed">1×</button><button id="btnLog" aria-label="Play log">📋</button><button id="btnMenu" aria-label="Menu">☰</button></div>
+      </div>
+      <div id="bannerHost"></div>
+    </div>
+    <div class="sticker ticker" id="ticker"><span class="txt muted">Welcome to the game.</span></div>
+    <div class="stars">
+      <div class="head"><span class="label">★ Show-Me Meters</span><div class="seg" id="starTab"><button data-v="me" class="on">You</button><button data-v="them">Them</button></div></div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="sticker callpanel" id="callpanel"></div>
+  </section>
+
+  <!-- FINAL -->
+  <section class="screen" id="final">
+    <div class="wrap stack" id="finalBody" style="max-width:520px"></div>
+  </section>
+</div>
+
+<div class="modal" id="modal"><div class="sticker sheet" id="sheet"></div></div>
+
+<script src="js/data.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/anim.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+</script>
+</body>
+</html>
