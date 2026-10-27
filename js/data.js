@@ -78,6 +78,14 @@
     CB: { d: ['short', 'long'], name: 'Lockdown', desc: 'Jumps the route: pick or pass breakup' },
     KP: { k: true, name: 'Big Leg', desc: '+8 yards of range, booming punts' },
   };
+  // special-teams show-me moves (armed stars fire on kick and punt plays)
+  GI.RETURN_POS = ['RB', 'WR', 'CB', 'S'];
+  GI.COVER_POS = ['LB', 'S'];
+  GI.KICK_MOVES = {
+    ret: { name: 'House Call', desc: 'Takes a kick or punt back for a huge return, maybe all the way' },
+    cov: { name: 'Big Hit', desc: 'Blows up the returner on kick coverage, can jar the ball loose' },
+  };
+  GI.COLLEGES = ['Lakeshore State', 'Red Rock Tech', 'Pine Valley', 'Ozark A&M', 'Coastal Carolina Tech', 'Great Plains U', 'Mesa Verde', 'Northern Pines', 'Bayou State', 'Granite Falls', 'Sierra Polytechnic', 'Cumberland', 'Prairie View Tech', 'Iron Range', 'Harbor City', 'Blue Ridge', 'Copper Basin', 'Timberline', 'Sunbelt State', 'Riverside A&T'];
   // flexible star slot limits (on-field room)
   GI.FLEX_MAX = { RB: 1, WR: 3, TE: 1, OL: 3, LB: 2, S: 2, DL: 3, CB: 2 };
 

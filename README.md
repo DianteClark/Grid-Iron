@@ -5,7 +5,13 @@ A sticker-style football sim you play in the browser — built mobile-first and 
 **▶ Play:** https://dianteclark.github.io/Grid-Iron/
 
 ## What's in it
-- **Season mode**: 8, 12 or 17-week seasons across two conferences (Iron & Steel) and eight divisions, full standings, a 12-team playoff and the **Iron-Bowl**. Injuries carry across weeks, morale rides streaks, and every other game in the league is simulated with the same engine.
+- **Franchise mode**: every team starts empty. A 4-round opening draft (K/P, QB and LB required in rounds 1–3) leaves teams with 3–5 stars and room to grow; later drafts grow to 5, 6, 7 and 8 rounds. Prospects show scouted rating ranges (fuzzy until you draft them), potential grades and ⚡ breakthrough spark. Auto-pick and auto-draft included.
+- **Contracts & budget**: rookie deals, salaries, re-signing or letting stars walk, one backup star whose contract only starts when he plays, ticket and TV revenue, an Iron-Bowl purse for the next draft.
+- **Spring training** with camp focus, intense camps and rookie breakthroughs (+8 to +15).
+- **Front office upgrades**: stadium, gym, scouts and medical.
+- **Drama**: trade demands from big egos, coordinators poached by rivals, coaches on the hot seat, scout reports on prospects, local walk-on legends.
+- **32 team crests** with unique mascot emblems; stars appear as gold crest coins on the field.
+- **Seasons**: 8, 12 or 17-week seasons across two conferences (Iron & Steel) and eight divisions, full standings, a 12-team playoff and the **Iron-Bowl**. Injuries carry across weeks, morale rides streaks, and every other game in the league is simulated with the same engine.
 - **The Grid-Iron Gazette**: a full-screen newspaper after every week with your headline, a play-of-the-week photo, injury report, scores, your division, and an EXTRA! story that can change your next game (leaked game plans, film study, storms, sellouts) or make you choose how to handle a star's ego.
 - **32 custom teams**, each with **8 star slots**: every team has a K/P, QB and LB star, plus 5 flexible slots (QB, RB, WR, TE, OL, LB, S, DL, CB — at least one more on offense and one on defense), so every roster has its own identity.
 - **Call every snap** on offense and defense: Inside Run, Outside Run, Short Pass, Long Pass, Trick Play vs Man, Zone, Cover Long, Press, Blitz In, Blitz Out. Every play has one hard counter (see the Counter Chart in game).
@@ -26,8 +32,8 @@ A sticker-style football sim you play in the browser — built mobile-first and 
 1. ✅ Core game: field, animations, calls & counters, stars
 1.5 ✅ Polish: full-screen field, helmet stars & fire, CB stars, clashes, sound, settings
 2. ✅ Seasons: schedule, standings, playoffs, Iron-Bowl, the Gazette
-3. Franchise: drafts, spring training, coach drama (quitting, firings, defections), weekly newspaper with exploits, budgets
-4. Customization: jerseys, stadium, team gym
+3. ✅ Franchise: drafts, contracts, budget, spring training, upgrades, coach and ego drama
+4. Legacy & customization: records room, career stats, jerseys and stadium looks
 
 ## Run locally
 Any static server works, e.g. `python3 -m http.server` and open `http://localhost:8000`.

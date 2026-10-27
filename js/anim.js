@@ -171,9 +171,8 @@
         g.fillStyle = '#fff'; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
         g.fillStyle = this.user.c1; g.beginPath(); g.arc(cx, cy, r - ppy * 0.5, 0, 7); g.fill();
         g.strokeStyle = this.user.c2; g.lineWidth = ppy * 0.35; g.beginPath(); g.arc(cx, cy, r - ppy * 0.95, 0, 7); g.stroke();
-        drawHelmet(g, cx, cy - ppy * 0.5, ppy * 1.4, 0, this.user.c1 === '#ffffff' ? '#ddd' : this.user.c1, this.user.c2);
+        if (GI.drawGlyph) GI.drawGlyph(g, this.user.glyph || GI.TEAM_GLYPH[this.user.idx], cx, cy, ppy * 4.4, lum(this.user.c1) > 0.6 ? '#1d1d1f' : '#fff', this.user.c1);
         g.fillStyle = lum(this.user.c1) > 0.6 ? '#1d1d1f' : '#fff'; g.font = `${Math.round(ppy * 1.3)}px ${FONT}`;
-        g.fillText(this.user.abbr, cx, cy + ppy * 1.7);
         g.globalAlpha = 1;
       }
       g.restore();
@@ -219,7 +218,7 @@
       const role = id.slice(2);
       const star = team.stars.find((s) => s.role === role && !s.injured);
       const stripe = color === team.c1 ? team.c2 : team.c1;
-      return { id, role, side: id[0], rx: p[0], ry: p[1], color, stripe, star: !!star, num: star ? star.num : null, fire: !!star && (star.meter >= 100 || star.armed), armed: !!star && star.armed, ang: null };
+      return { id, role, side: id[0], rx: p[0], ry: p[1], color, stripe, glyph: team.glyph || GI.TEAM_GLYPH[team.idx], star: !!star, num: star ? star.num : null, fire: !!star && (star.meter >= 100 || star.armed), armed: !!star && star.armed, ang: null };
     }
     toAbs(rx, ry) {
       const { los, dir } = this.ctxPlay;
@@ -398,7 +397,11 @@
         if (p.star) {
           const R = r * 1.32;
           if (p.armed) { g.strokeStyle = `rgba(255,201,60,${0.5 + pulse * 0.5})`; g.lineWidth = 2.5; g.beginPath(); g.arc(x, y, R * 1.25 + 4 + pulse * 2, 0, 7); g.stroke(); }
-          drawHelmet(g, x, y, R, p.ang || 0, p.color, p.stripe);
+          // crest coin: gold ring, white sticker edge, team colour, mascot emblem
+          g.fillStyle = '#ffc93c'; g.beginPath(); g.arc(x, y, R + 2.6, 0, 7); g.fill();
+          g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, R - 0.2, 0, 7); g.fill();
+          g.fillStyle = p.color; g.beginPath(); g.arc(x, y, R - 2.2, 0, 7); g.fill();
+          if (GI.drawGlyph) GI.drawGlyph(g, p.glyph, x, y, (R - 2.2) * 1.45, GI.inkOn(p.color), p.color);
           return;
         }
         g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, r + 2, 0, 7); g.fill();

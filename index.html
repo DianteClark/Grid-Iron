@@ -34,7 +34,7 @@
       <div class="menu">
         <div id="seasonCard"></div>
         <button class="btn gold block" id="btnResume" hidden>▶ Resume Game</button>
-        <button class="btn block" id="btnSeason">New Season</button>
+        <button class="btn block" id="btnSeason">New Franchise</button>
         <button class="btn ghost block" id="btnQuick">Quick Game</button>
         <div class="menu2">
           <button class="btn ghost small" id="btnHelp">How to Play</button>
@@ -42,7 +42,7 @@
           <button class="btn ghost small" id="btnSettings">⚙ Settings</button>
         </div>
       </div>
-      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.3 · Seasons & the Gazette · Add to your Home Screen to play like an app</p>
+      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.4 · Franchise mode · Add to your Home Screen to play like an app</p>
     </div>
   </section>
 
@@ -65,6 +65,15 @@
   <section class="screen" id="hub">
     <div class="wrap stack" id="hubBody" style="max-width:620px"></div>
   </section>
+
+  <!-- DRAFT ROOM -->
+  <section class="screen" id="draft"><div class="wrap stack" id="draftBody" style="max-width:720px"></div></section>
+
+  <!-- ROSTER -->
+  <section class="screen" id="roster"><div class="wrap stack" id="rosterBody" style="max-width:820px"></div></section>
+
+  <!-- FRONT OFFICE -->
+  <section class="screen" id="office"><div class="wrap stack" id="officeBody" style="max-width:720px"></div></section>
 
   <!-- STANDINGS / BRACKET / SCHEDULE -->
   <section class="screen" id="tables">
@@ -118,6 +127,7 @@
 
 <script src="js/data.js"></script>
 <script src="js/sim.js"></script>
+<script src="js/crests.js"></script>
 <script src="js/season.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/anim.js"></script>
