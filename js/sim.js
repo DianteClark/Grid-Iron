@@ -217,7 +217,7 @@
       to: { home: 3, away: 3 }, runoff: 0, twoMin: {}, hurry: { home: false, away: false }, mom: 0, adj: { home: null, away: null },
       ps: {}, cpuLog: [], drive: { plays: 0, side: firstRecv }, rivalry: o.rivalry || null, book: o.book || null, brokeRec: {},
       career: o.career || null, keyMode: !!o.keyMode, quick: !!o.quick, hurtIds: o.hurt || [], careerBase: o.careerBase || null,
-      venue, neutral: !!venue.neutral, roofNote: roof.note, outside: rolled, flow: [],
+      venue, neutral: !!venue.neutral, roofNote: roof.note, outside: rolled, flow: [], effExtra: o.effExtra || null,
     };
     if (o.potwLeft) G.potwLeft = Object.assign({}, o.potwLeft);
     G.edge = buildEdges(G, o.edges || {});

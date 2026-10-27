@@ -54,6 +54,7 @@
     // fast teams like fast tracks
     const fast = t.identity === 'air' || t.identity === 'west';
     if (fast && V.surface && V.surface !== 'grass') add('Speed team on turf', 1, 'off');
+    ((G.effExtra && G.effExtra[side]) || []).forEach((m) => add(m.label, m.v, m.scope));
     return mods;
   };
   // the full picture for one side, right now (morale moves during the game)

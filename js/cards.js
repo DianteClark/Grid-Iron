@@ -85,7 +85,7 @@
       };
       C.refresh(card);
       // potential: young players have room to grow, veterans are close to their peak
-      const room = age <= 23 ? ri(8, 20) : age <= 26 ? ri(4, 12) : age <= 29 ? ri(0, 5) : 0;
+      const room = age <= 23 ? ri(5, 14) : age <= 26 ? ri(2, 8) : age <= 29 ? ri(0, 3) : 0;
       card.pot = clamp(card.rating + room, card.rating, 99);
       if (!line) {
         const tr = R();

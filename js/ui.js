@@ -173,22 +173,54 @@
 
   // ---------- v1 player cards ----------
   const TIER_NAME = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', elite: 'Elite', star: 'Star Player' };
+  // a jersey in the team's colors: the card's portrait
+  function jerseySVG(c1, c2, label, small) {
+    const ink = GI.inkOn(c1);
+    const fs = String(label).length > 2 ? 26 : 34;
+    return `<svg class="jersey" viewBox="0 0 100 92" aria-hidden="true">
+      <path d="M31 9 43 4c3 5 11 5 14 0l12 5 23 12-8 22-10-4v49H26V39l-10 4-8-22z" fill="${c1}" stroke="rgba(0,0,0,.45)" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M43 4c3 6 11 6 14 0" fill="none" stroke="${c2}" stroke-width="4"/>
+      <path d="M18 30l7 3M82 30l-7 3" stroke="${c2}" stroke-width="5" stroke-linecap="round"/>
+      <path d="M33 14 43 9c3 4 11 4 14 0l10 5" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="2"/>
+      ${small ? '' : `<text x="50" y="${62 + (fs === 34 ? 4 : 0)}" text-anchor="middle" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-weight="900" font-style="italic" font-size="${fs}" fill="${ink}" stroke="${c2}" stroke-width="1.6" paint-order="stroke">${label}</text>`}
+    </svg>`;
+  }
+  // the player's shape: three stats as a triangle (top = his first stat)
+  function statTri(c) {
+    const keys = GI.cards.STATS[c.pos];
+    const V = [[50, 8], [10, 74], [90, 74]], cx = 50, cy = 52;
+    const at = (i, f) => [cx + (V[i][0] - cx) * f, cy + (V[i][1] - cy) * f];
+    const f = (v) => Math.max(0.1, (v - 45) / 54);
+    const pts = keys.map(([k], i) => at(i, f(c.stats[k])).map((x) => x.toFixed(1)).join(',')).join(' ');
+    const ring = (fr) => [0, 1, 2].map((i) => at(i, fr).join(',')).join(' ');
+    return `<svg class="tri" viewBox="0 0 100 86" aria-hidden="true">
+      <polygon points="${ring(1)}" class="t-grid"/><polygon points="${ring(0.66)}" class="t-grid"/><polygon points="${ring(0.33)}" class="t-grid"/>
+      <polygon points="${pts}" class="t-shape"/>
+      ${keys.map(([k], i) => { const p = at(i, f(c.stats[k])); return `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" class="t-dot"/>`; }).join('')}
+    </svg>`;
+  }
   function cardHTML(c, team, opts) {
     opts = opts || {};
     const CD = GI.cards;
     const tier = c.tier || CD.tierOf(c.rating).key;
-    const col = team ? (team.c1 || '#3a4766') : '#3a4766', ink = GI.inkOn(col);
-    const stats = c.stats ? CD.STATS[c.pos].map(([k, n]) => `<div class="cs"><span>${n}</span><i><b style="width:${Math.max(4, (c.stats[k] - 35) / 64 * 100)}%"></b></i><em>${c.stats[k]}</em></div>`).join('') : '';
-    const portrait = c.unit
-      ? `<div class="cp-unit">${Array.from({ length: c.pos === 'OL' ? 5 : 4 }, () => `<span style="--tc:${col}"></span>`).join('')}</div>`
-      : `<div class="cp-ball" style="--tc:${col};color:${ink}">${c.num != null ? c.num : ''}</div>`;
-    const flags = [opts.hurt ? `<span class="cflag red">${esc(opts.hurt)}</span>` : '', opts.bench ? '<span class="cflag">Bench</span>' : '', c.star ? '<span class="cflag star">★ Star</span>' : ''].join('');
-    return `<button class="pcard t-${tier} ${opts.small ? 'sm' : ''} ${opts.hurt ? 'hurt' : ''}" ${opts.id ? `data-card="${esc(c.id)}"` : ''} aria-label="${esc(c.name)}, ${GI.POS[c.pos].label}, ${c.rating} overall, ${TIER_NAME[tier]}">
-      <span class="pc-top"><span class="pc-ovr">${c.rating}<small>${GI.POS[c.pos].label}</small></span><span class="pc-tier">${TIER_NAME[tier]}</span></span>
-      ${portrait}
+    const c1 = team ? (team.c1 || '#3a4766') : '#3a4766', c2 = team ? (team.c2 || '#ffffff') : '#ffffff';
+    const label = c.unit ? GI.POS[c.pos].label : c.num != null ? c.num : GI.POS[c.pos].label;
+    const arch = GI.dev ? GI.dev.archetype(c) : '';
+    const traits = (c.traits || []).filter((k) => GI.TRAIT_ICON[k]).map((k) => `<i title="${GI.TRAITS[k].name}">${GI.ico(GI.TRAIT_ICON[k])}</i>`).join('');
+    const cost = GI.dev ? GI.dev.levelCost(c.rating) : 100;
+    const maxed = c.pot && c.rating >= c.pot;
+    const xpw = maxed ? 100 : Math.min(100, Math.round(((c.xp || 0) / cost) * 100));
+    const flags = [opts.hurt ? `<span class="cflag red">${esc(opts.hurt)}</span>` : '', opts.bench ? '<span class="cflag">Bench</span>' : '', c.gem ? `<span class="cflag gem">${GI.ico('spark')}Gem</span>` : ''].join('');
+    const stats = c.stats ? CD.STATS[c.pos].map(([k, n]) => `<span class="cs"><em>${c.stats[k]}</em><small>${n}</small></span>`).join('') : '';
+    return `<button class="pcard t-${tier} ${opts.small ? 'sm' : ''} ${opts.hurt ? 'hurt' : ''}" style="--tc:${c1};--tc2:${c2}" ${opts.id ? `data-card="${esc(c.id)}"` : ''} aria-label="${esc(c.name)}, ${GI.POS[c.pos].label}, ${c.rating} overall, ${TIER_NAME[tier]}">
+      <span class="pc-bg"></span>
+      <span class="pc-top"><span class="pc-ovr">${c.rating}<small>${GI.POS[c.pos].label}</small></span>${opts.small ? '' : `<span class="pc-tier">${c.star ? GI.ico('star') : ''}${TIER_NAME[tier]}</span>`}</span>
+      <span class="pc-art">${c.unit ? `<span class="pc-unit">${jerseySVG(c1, c2, '', true)}${jerseySVG(c1, c2, label)}${jerseySVG(c1, c2, '', true)}</span>` : jerseySVG(c1, c2, label)}</span>
       <span class="pc-name">${esc(opts.small && !c.unit ? GI.shortName(c.name) : c.name)}</span>
-      ${opts.small ? '' : `<span class="pc-stats">${stats}</span>`}
-      <span class="pc-foot">${c.age ? `age ${c.age}` : ''}${c.pot ? ` · POT ${SN.grade(c.pot)}` : ''}${(c.traits || []).map((k) => GI.TRAITS[k] ? ' ' + GI.TRAITS[k].icon : '').join('')}</span>
+      ${opts.small ? '' : `<span class="pc-arch">${esc(arch)}</span>
+      <span class="pc-body">${c.stats ? statTri(c) : ''}<span class="pc-stats">${stats}</span></span>
+      <span class="pc-xp" title="${maxed ? 'At his ceiling' : `${c.xp || 0} / ${cost} XP to the next level`}"><i><b style="width:${xpw}%"></b></i><span>${maxed ? 'CEILING' : 'POT ' + c.pot}</span></span>
+      <span class="pc-foot"><span>${c.age ? 'AGE ' + c.age : ''}</span><span class="pc-traits">${traits}</span></span>`}
       ${flags ? `<span class="pc-flags">${flags}</span>` : ''}
     </button>`;
   }

@@ -768,6 +768,7 @@
     const tS = get.stars.map((id) => theirs.find((s) => s.id === id)).filter(Boolean);
     if (!gS.length && !tS.length && !give.picks.length && !get.picks.length) return { ok: false, why: 'Pick players or picks to swap', ratio: 0 };
     const ua = rosterAfter(S, S.user, give.stars, tS), pa = rosterAfter(S, partner, get.stars, gS);
+    if (S.rosters[S.user].v === 1) { ua.overflow = pa.overflow = false; ua.missing = pa.missing = []; }
     if (ua.overflow) return { ok: false, why: 'Not enough roster room on your side' };
     if (pa.overflow) return { ok: false, why: `${T(partner).city} doesn't have the roster room` };
     if (ua.missing.length) return { ok: false, why: `You'd have no ${ua.missing.map((p) => GI.POS[p].label).join('/')} star` };
@@ -788,6 +789,7 @@
     const mine = SN.allStars(S, S.user), theirs = SN.allStars(S, partner);
     const gS = give.stars.map((id) => mine.find((s) => s.id === id)), tS = get.stars.map((id) => theirs.find((s) => s.id === id));
     const place = (team, outIds, inStars) => {
+      if (S.rosters[team].v === 1) { outIds.forEach((id) => SN.removeFromRoster(S, team, id)); inStars.forEach((c) => GI.dev.addCard(S, team, c)); GI.dev.fillLineup(S, team); return; }
       const a = rosterAfter(S, team, outIds, inStars);
       a.r.stars = a.starters; a.r.bench = a.bench;
       if (a.bench && a.bench.contract && !inStars.includes(a.bench)) { /* stays as it was */ }
