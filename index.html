@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -27,27 +27,32 @@
   <section class="screen on" id="title">
     <div class="wrap">
       <div class="logo">
-        <div class="ball" id="logoHelmet"></div>
+        <div class="hero" id="logoHelmet"></div>
         <h1>GRID<span>IRON</span></h1>
         <p>Sticker-sized football. Big-time drama.</p>
       </div>
       <div class="menu">
+        <div id="seasonCard"></div>
         <button class="btn gold block" id="btnResume" hidden>▶ Resume Game</button>
-        <button class="btn block" id="btnQuick">Quick Game</button>
-        <button class="btn ghost block soon" disabled>Franchise Mode</button>
-        <button class="btn ghost block" id="btnHelp">How to Play</button>
-        <button class="btn ghost block" id="btnSettings">Settings</button>
+        <button class="btn block" id="btnSeason">New Season</button>
+        <button class="btn ghost block" id="btnQuick">Quick Game</button>
+        <div class="menu2">
+          <button class="btn ghost small" id="btnHelp">How to Play</button>
+          <button class="btn ghost small" id="btnTrophies">🏆 Trophies</button>
+          <button class="btn ghost small" id="btnSettings">⚙ Settings</button>
+        </div>
       </div>
-      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.2 · Phase 1.5 · Add to your Home Screen to play like an app</p>
+      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.3 · Seasons & the Gazette · Add to your Home Screen to play like an app</p>
     </div>
   </section>
 
   <!-- TEAM PICK -->
   <section class="screen" id="pick">
     <div class="wrap">
-      <div class="topbar"><button class="iconbtn" data-back="title" aria-label="Back">←</button><h2 id="pickTitle">Pick your team</h2></div>
+      <div class="topbar"><button class="iconbtn" id="pickBack" aria-label="Back">←</button><h2 id="pickTitle">Pick your team</h2></div>
       <div class="sticker settings" id="settings">
-        <div class="row"><span class="label">Venue</span><div class="seg" data-set="home"><button data-v="1" class="on">Home</button><button data-v="0">Away</button></div></div>
+        <div class="row" data-only="season"><span class="label">Season</span><div class="seg" data-set="weeks"><button data-v="8">8 wks</button><button data-v="12" class="on">12 wks</button><button data-v="17">17 wks</button></div></div>
+        <div class="row" data-only="quick"><span class="label">Venue</span><div class="seg" data-set="home"><button data-v="1" class="on">Home</button><button data-v="0">Away</button></div></div>
         <div class="row"><span class="label">Quarters</span><div class="seg" data-set="qMin"><button data-v="5" class="on">5 min</button><button data-v="8">8 min</button><button data-v="15">15 min</button></div></div>
         <div class="row"><span class="label">Level</span><div class="seg" data-set="diff"><button data-v="rookie">Rookie</button><button data-v="pro" class="on">Pro</button><button data-v="legend">Legend</button></div></div>
       </div>
@@ -56,11 +61,28 @@
     <div class="dock" id="pickDock" hidden><button class="btn gold" id="pickNext">Next</button></div>
   </section>
 
+  <!-- SEASON HUB -->
+  <section class="screen" id="hub">
+    <div class="wrap stack" id="hubBody" style="max-width:620px"></div>
+  </section>
+
+  <!-- STANDINGS / BRACKET / SCHEDULE -->
+  <section class="screen" id="tables">
+    <div class="wrap stack" id="tablesBody" style="max-width:720px"></div>
+  </section>
+
+  <!-- THE GAZETTE -->
+  <section class="screen" id="paper">
+    <div class="paperstage"><article class="gazette" id="gazette"></article></div>
+    <div class="dock" id="paperDock"><button class="btn gold" id="paperNext" disabled>Continue ▶</button></div>
+  </section>
+
   <!-- PREGAME -->
   <section class="screen" id="pregame">
     <div class="wrap stack" style="padding-bottom:90px">
-      <div class="topbar" style="margin-bottom:0"><button class="iconbtn" data-back="pick" aria-label="Back">←</button><h2>Game Day</h2></div>
+      <div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="pgBack" aria-label="Back">←</button><h2 id="pgTitle">Game Day</h2></div>
       <div class="sticker matchup" id="pgMatch"></div>
+      <div id="pgMods"></div>
       <div class="conds" id="pgConds"></div>
       <div class="sticker bars" id="pgBars"></div>
       <div class="sticker panel" id="pgPotw"></div>
@@ -77,10 +99,11 @@
       <div id="bannerHost"></div>
     </div>
     <header class="scorebar sticker" id="sb"></header>
+    <div class="rail sticker" id="rail" aria-label="Star players"></div>
+    <div class="railpop sticker" id="railPop" hidden></div>
     <div class="status sticker" id="status" hidden></div>
     <div class="psheet sticker" id="psheet">
       <button class="ticker" id="ticker" aria-label="Open play-by-play"><span class="txt muted">Welcome to the game.</span></button>
-      <div class="chips" id="chips"></div>
       <div id="callpanel"></div>
     </div>
   </section>
@@ -95,6 +118,7 @@
 
 <script src="js/data.js"></script>
 <script src="js/sim.js"></script>
+<script src="js/season.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/anim.js"></script>
 <script src="js/ui.js"></script>

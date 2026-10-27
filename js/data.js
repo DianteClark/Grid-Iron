@@ -57,6 +57,7 @@
     QB: { side: 'O', label: 'QB', full: 'Quarterback' },
     RB: { side: 'O', label: 'RB', full: 'Running Back' },
     WR: { side: 'O', label: 'WR', full: 'Wide Receiver' },
+    TE: { side: 'O', label: 'TE', full: 'Tight End' },
     OL: { side: 'O', label: 'OL', full: 'Offensive Line' },
     LB: { side: 'D', label: 'LB', full: 'Linebacker' },
     S:  { side: 'D', label: 'S',  full: 'Safety' },
@@ -70,6 +71,7 @@
     RB: { o: ['in_run', 'out_run', 'trick'], name: 'Breakaway', desc: 'Busts one loose for a huge gain' },
     WR: { o: ['short', 'long', 'trick'], name: 'Circus Catch', desc: 'Hauls in anything near him' },
     OL: { o: ['in_run', 'out_run'], name: 'Pancake Block', desc: '+15 extra yards on a run' },
+    TE: { o: ['short', 'in_run', 'out_run', 'trick'], name: 'Seam Buster', desc: 'Rumbles up the seam, or seals the edge for +12' },
     DL: { d: ['short', 'long', 'trick', 'in_run', 'out_run'], name: 'Strip Sack', desc: 'Sack or tackle for loss, may force a fumble' },
     LB: { d: ['in_run', 'out_run', 'short', 'trick'], name: 'Takeaway', desc: 'Punches the ball out or jumps the route' },
     S:  { d: ['short', 'long', 'trick'], name: 'Pick Six Hunt', desc: 'Picks it off and takes it back' },
@@ -77,7 +79,7 @@
     KP: { k: true, name: 'Big Leg', desc: '+8 yards of range, booming punts' },
   };
   // flexible star slot limits (on-field room)
-  GI.FLEX_MAX = { RB: 1, WR: 3, OL: 3, LB: 2, S: 2, DL: 3, CB: 2 };
+  GI.FLEX_MAX = { RB: 1, WR: 3, TE: 1, OL: 3, LB: 2, S: 2, DL: 3, CB: 2 };
 
   // ---------- plays ----------
   GI.OFF_PLAYS = [

@@ -21,12 +21,12 @@
 
   // ---------- teams ----------
   const ROLE_MAP = {
-    QB: ['QB'], RB: ['RB'], WR: ['WR1', 'WR2', 'WR3'], OL: ['C', 'LT', 'RT'],
+    QB: ['QB'], RB: ['RB'], WR: ['WR1', 'WR2', 'WR3'], TE: ['TE'], OL: ['C', 'LT', 'RT'],
     LB: ['MLB', 'WLB', 'SLB'], S: ['FS', 'SS'], DL: ['DE1', 'DE2', 'DT1'], CB: ['CB1', 'CB2'], KP: ['K'],
   };
-  const NUMS = { QB: [1, 19], RB: [20, 39], WR: [80, 89], OL: [60, 79], LB: [40, 59], S: [20, 49], DL: [90, 99], CB: [20, 39], KP: [1, 19] };
+  const NUMS = { QB: [1, 19], RB: [20, 39], WR: [80, 89], TE: [80, 89], OL: [60, 79], LB: [40, 59], S: [20, 49], DL: [90, 99], CB: [20, 39], KP: [1, 19] };
   const BOOST = {
-    QB: { pass: 9 }, RB: { run: 9 }, WR: { pass: 5 }, OL: { run: 4, ol: 6 },
+    QB: { pass: 9 }, RB: { run: 9 }, WR: { pass: 5 }, TE: { pass: 3, run: 3 }, OL: { run: 4, ol: 6 },
     LB: { runD: 5, passD: 2 }, S: { passD: 4, runD: 2 }, CB: { passD: 6 }, DL: { rush: 6, runD: 3 }, KP: { st: 14 },
   };
 
@@ -40,10 +40,10 @@
       flex = [];
       const c = {};
       while (flex.length < 5) {
-        const p = pick(['RB', 'WR', 'OL', 'LB', 'S', 'DL', 'WR', 'DL', 'LB', 'S', 'CB', 'CB']);
+        const p = pick(['RB', 'WR', 'OL', 'LB', 'S', 'DL', 'WR', 'DL', 'LB', 'S', 'CB', 'CB', 'TE', 'TE']);
         if ((c[p] || 0) < GI.FLEX_MAX[p]) { c[p] = (c[p] || 0) + 1; flex.push(p); }
       }
-    } while (!flex.some((p) => ['RB', 'WR', 'OL'].includes(p)) || !flex.some((p) => ['LB', 'S', 'DL', 'CB'].includes(p)));
+    } while (!flex.some((p) => ['RB', 'WR', 'OL', 'TE'].includes(p)) || !flex.some((p) => ['LB', 'S', 'DL', 'CB'].includes(p)));
     const slots = ['KP', 'QB', 'LB'].concat(flex);
     const used = new Set(), usedNum = new Set();
     const roleUse = {};
@@ -65,6 +65,7 @@
     stars.forEach((s) => {
       if (s.pos === 'RB' || s.pos === 'OL') offW.run += 0.6;
       if (s.pos === 'WR') offW.pass += 0.6;
+      if (s.pos === 'TE') { offW.run += 0.3; offW.pass += 0.3; }
       if (s.pos === 'DL' || s.pos === 'LB') defW.blitz += 0.4;
       if (s.pos === 'S') defW.cover += 0.6;
       if (s.pos === 'CB') defW.press += 0.6;
@@ -108,11 +109,16 @@
   GI.newGame = function (o) {
     const homeIdx = o.userHome ? o.user : o.opp;
     const awayIdx = o.userHome ? o.opp : o.user;
-    const weather = wpick({ clear: 44, rain: 18, snow: 10, wind: 16, heat: 12 });
-    const crowd = GI.CROWD[ri(0, GI.CROWD.length - 1)];
+    const weather = o.weather || wpick({ clear: 44, rain: 18, snow: 10, wind: 16, heat: 12 });
+    let crowd = GI.CROWD[ri(0, GI.CROWD.length - 1)];
+    if (o.crowdLevel != null) crowd = GI.CROWD.reduce((b, c) => (Math.abs(c.level - o.crowdLevel) < Math.abs(b.level - o.crowdLevel) ? c : b));
     const teams = { home: GI.buildTeam(homeIdx), away: GI.buildTeam(awayIdx) };
+    const inj = new Set(o.injured || []);
+    ['home', 'away'].forEach((s) => teams[s].stars.forEach((st) => { if (inj.has(st.id)) st.injured = true; }));
+    if (o.starMeter) ['home', 'away'].forEach((s) => teams[s].stars.forEach((st) => { if (o.starMeter[st.id] != null) st.meter = o.starMeter[st.id]; }));
     const morale = {};
-    ['home', 'away'].forEach((s) => (morale[s] = clamp(55 + (teams[s].coaches.hc.rating - 70) / 2 + ri(-5, 5), 30, 90)));
+    ['home', 'away'].forEach((s) => (morale[s] = clamp(55 + (teams[s].coaches.hc.rating - 70) / 2 + ri(-5, 5) + ((o.morale && o.morale[s]) || 0), 20, 95)));
+    const potwPick = () => ({ off: GI.OFF_PLAYS[ri(0, 4)].id, def: GI.DEF_PLAYS[ri(0, 5)].id });
     const firstRecv = R() < 0.5 ? 'home' : 'away';
     const G = {
       v: 1, user: o.userHome ? 'home' : 'away', teams, score: { home: 0, away: 0 },
@@ -121,7 +127,10 @@
       weather, crowd, diff: o.diff || 'pro', potw: o.potw || { off: 'short', def: 'zone' },
       morale, stats: { home: mkStats(), away: mkStats() }, log: [], hist: { off: [], def: [] },
       pending: null, flash: null, over: false, ot: false, playNo: 0,
+      potwLeft: { off: 3, def: 3 }, cpuPotw: o.cpuPotw || potwPick(), cpuPotwLeft: { off: 3, def: 3 },
+      playoff: !!o.playoff, intel: o.intel || null, film: !!o.film, label: o.label || null,
     };
+    if (o.potwLeft) G.potwLeft = Object.assign({}, o.potwLeft);
     addLog(G, `Coin toss: ${teams[firstRecv].name} receive. ${GI.WEATHER[weather].icon} ${GI.WEATHER[weather].name}, ${crowd.name} crowd.`, 'info');
     return G;
   };
@@ -193,12 +202,17 @@
         G.phase = 'kickoff'; G.kickTeam = other(recv); G.poss = recv; G.freeKick = false; G.pending = null; G.flash = 'ot';
         addLog(G, `Overtime! Sudden death. ${G.teams[recv].name} receive.`, 'info');
       } else endGame(G);
+    } else if (G.playoff && G.score.home === G.score.away) {
+      G.clock = Math.min(G.qLen, 600);
+      const recv = R() < 0.5 ? 'home' : 'away';
+      G.phase = 'kickoff'; G.kickTeam = other(recv); G.poss = recv; G.freeKick = false; G.pending = null; G.flash = 'ot';
+      addLog(G, `Still tied — another overtime period. Playoffs can't end in a tie.`, 'info');
     } else endGame(G);
   }
   function endGame(G) { G.over = true; G.phase = 'over'; addLog(G, 'Final.', 'info'); }
 
   // ---------- CPU brains ----------
-  const ADAPT = { rookie: 0, pro: 5, legend: 11 };
+  const ADAPT = { rookie: 0, pro: 8, legend: 14 };
   const DIFF_ADV = { rookie: -0.35, pro: 0, legend: 0.35 };
   function cpuFourth(G) {
     if (G.down !== 4 || G.twoPt) return null;
@@ -227,7 +241,7 @@
     if (G.q >= 4 && G.clock < 300 && diff > 0) { w.in_run *= 2.2; w.out_run *= 1.6; w.trick = 0; }
     if (G.ballOn >= 92) { w.long *= 0.2; }
     const k = ADAPT[G.diff];
-    G.hist.def.slice(0, 8).forEach((d) => {
+    G.hist.def.slice(0, 6).forEach((d) => {
       for (const o in GI.MATRIX) if (GI.MATRIX[o][d] === 2) w[o] += k;
     });
     return wpick(w);
@@ -242,7 +256,8 @@
     if (G.toGo >= 8) { w.deep *= 1.8; w.zone *= 1.4; }
     if (G.toGo <= 2) { w.blitz_in *= 1.8; w.blitz_out *= 1.4; w.deep *= 0.4; }
     const k = ADAPT[G.diff];
-    G.hist.off.slice(0, 8).forEach((o) => { w[GI.counterOf(o)] += k; });
+    G.hist.off.slice(0, 6).forEach((o) => { w[GI.counterOf(o)] += k; });
+    if (G.film && G.diff !== 'rookie') w[GI.counterOf(G.potw.off)] += 18; // they studied your Play of the Week
     return wpick(w);
   }
   function armCpu(G, side, kind, call) {
@@ -321,17 +336,24 @@
     const unit = isRun ? ro.run * 0.6 + ro.ol * 0.4 - (rd.runD * 0.7 + rd.rush * 0.3)
       : isPass ? ro.pass * 0.65 + ro.ol * 0.35 - (rd.passD * 0.65 + rd.rush * 0.35)
         : (ro.pass + ro.run) / 2 - (rd.passD + rd.runD) / 2;
-    a += unit / 12;
+    a += unit / 16;
     a += (ot.coaches.oc.rating - dt.coaches.dc.rating) / 45;
     res.potw = false;
-    if (P === G.user && off === G.potw.off) { a += 0.8; res.potw = 'off'; }
-    if (D === G.user && def === G.potw.def) { a -= 0.8; res.potw = 'def'; }
-    a += (G.morale[P] - G.morale[D]) / 120;
+    // Play of the Week: only a few reps per game
+    if (P === G.user && off === G.potw.off && G.potwLeft.off > 0) { a += 0.7; G.potwLeft.off--; res.potw = 'off'; }
+    if (D === G.user && def === G.potw.def && G.potwLeft.def > 0) { a -= 0.7; G.potwLeft.def--; res.potw = 'def'; }
+    if (P !== G.user && off === G.cpuPotw.off && G.cpuPotwLeft.off > 0) { a += 0.7; G.cpuPotwLeft.off--; res.cpuPotw = 'off'; }
+    if (D !== G.user && def === G.cpuPotw.def && G.cpuPotwLeft.def > 0) { a -= 0.7; G.cpuPotwLeft.def--; res.cpuPotw = 'def'; }
+    // predictable: same call 3+ snaps in a row gets read by the defense / offense
+    const runOf = (h, c) => { let n = 0; for (const x of h) { if (x === c) n++; else break; } return n; };
+    if (P === G.user) { const n = runOf(G.hist.off, off); if (n >= 3) { a -= n >= 4 ? 0.9 : 0.5; res.predictable = true; } }
+    if (D === G.user) { const n = runOf(G.hist.def, def); if (n >= 3) { a += n >= 4 ? 0.9 : 0.5; res.predictable = true; } }
+    a += (G.morale[P] - G.morale[D]) / 150;
     if (isPass) a += W.pass;
     if (off === 'long') a += W.long;
     if (isRun) a += W.run;
     if (off === 'trick') a += W.pass * 0.5;
-    if (P === 'away') a -= (G.crowd.level / 100) * 0.45;
+    if (P === 'away') a -= (G.crowd.level / 100) * 0.25;
     if (G.weather === 'heat' && G.q >= 4) a += (ro.ovr - rd.ovr) / 40;
     a += (P === G.user ? -1 : 1) * DIFF_ADV[G.diff];
     a += gauss(0, 0.35);
@@ -380,7 +402,7 @@
     // receiver / defender selection helpers
     const pickTarget = () => {
       const w = { WR1: 3, WR2: 3, WR3: 2, TE: 1.5, RB: 1 };
-      ['WR1', 'WR2', 'WR3'].forEach((r) => { if (GI.starAt(ot, r)) w[r] *= 2.5; });
+      ['WR1', 'WR2', 'WR3', 'TE'].forEach((r) => { if (GI.starAt(ot, r)) w[r] *= 2.5; });
       return wpick(w);
     };
     const pickDef = (roles) => {
@@ -402,6 +424,9 @@
         o.kind = 'pass'; o.target = s.role; o.air = off === 'short' ? ri(7, 15) : ri(22, 42); o.yac = ri(4, 22);
       } else if (pos === 'RB') {
         o.kind = 'run'; o.yards = ri(22, 65); o.carrier = 'RB';
+      } else if (pos === 'TE') {
+        if (isRun) { o.kind = 'run'; o.carrier = 'RB'; o.yards = Math.max(1, Math.round(gauss(4, 2))) + 12; o.pancake = 'TE'; }
+        else { o.kind = 'pass'; o.target = 'TE'; o.air = ri(6, 14); o.yac = ri(8, 28); }
       } else if (pos === 'OL') {
         o.kind = 'run'; o.carrier = 'RB'; o.yards = Math.max(1, Math.round(gauss(4, 2))) + 15; o.pancake = s.role;
       } else if (pos === 'DL') {
@@ -495,7 +520,7 @@
         if (res.kind === 'int' && dOn <= 0 && ret < 8) { newOn = 20; res.touchback = true; ret = 0; }
         res.retYds = ret; res.toSpot = spot;
         S.to++; clockUse = 8;
-        G.morale[D] = clamp(G.morale[D] + 6, 15, 99); G.morale[P] = clamp(G.morale[P] - 7, 15, 99);
+        G.morale[D] = clamp(G.morale[D] + 3, 15, 99); G.morale[P] = clamp(G.morale[P] - 4, 15, 99);
         if (res.fumble) txt += ` — FUMBLE! ${dt.abbr} recover${ret > 5 ? ` and return it ${ret}` : ''}`;
         else if (ret > 0) txt += ` Returned ${ret} yards.`;
         if (G.twoPt) {
@@ -535,7 +560,7 @@
         res.gain = gain = 100 - start; res.td = true; res.scored = P;
         G.score[P] += 6; G.phase = 'pat'; G.ballOn = 98;
         txt += ` for ${gain} — TOUCHDOWN!`;
-        G.morale[P] = clamp(G.morale[P] + 7, 15, 99); G.morale[D] = clamp(G.morale[D] - 5, 15, 99);
+        G.morale[P] = clamp(G.morale[P] + 4, 15, 99); G.morale[D] = clamp(G.morale[D] - 3, 15, 99);
         res.banner = { title: 'TOUCHDOWN!', sub: ot.name, tone: P === G.user ? 'good' : 'bad' };
         clockUse = Math.min(clockUse, 8);
       } else if (newOn <= 0) {
@@ -586,7 +611,7 @@
     const offGood = !res.turnover && (gain >= 5 || res.firstDown || res.td);
     const big = gain >= 18 || res.td;
     const defGood = res.turnover || res.kind === 'sack' || res.kind === 'incomplete' || (!res.turnover && gain <= 2);
-    const invO = isRun ? ['RB', 'OL'] : isPass ? ['QB', 'WR', 'OL'] : ['QB', 'RB', 'WR'];
+    const invO = isRun ? ['RB', 'OL', 'TE'] : isPass ? ['QB', 'WR', 'OL', 'TE'] : ['QB', 'RB', 'WR', 'TE'];
     const invD = isRun ? ['LB', 'DL'] : ['S', 'DL', 'LB', 'CB'];
     const offBad = res.turnover || res.kind === 'incomplete' || res.kind === 'sack' || gain <= 0;
     const defBad = !res.turnover && (gain >= 8 || res.td);
@@ -801,6 +826,48 @@
     addLog(G, txt, res.td ? 'td' : 'play');
     return res;
   }
+
+  // ---------- CPU vs CPU: simulate a whole game instantly ----------
+  GI.cpu = { fourth: cpuFourth, off: cpuOffCall, def: cpuDefCall, arm: armCpu };
+  GI.autoCall = function (G) { // what a CPU coach would do for the "user" side
+    const n = GI.need(G);
+    if (n.kind === 'kickoff') return { type: 'kickoff', onside: n.onsideOk && R() < 0.7 };
+    if (n.kind === 'pat') return { type: 'pat', choice: GI.cpuPAT(G) };
+    if (n.kind !== 'call') return null;
+    if (n.userOff) {
+      const sp = cpuFourth(G);
+      if (sp) { armCpu(G, G.poss, 'o', null); return { type: 'play', special: sp }; }
+      const c = cpuOffCall(G);
+      armCpu(G, G.poss, 'o', c);
+      return { type: 'play', call: c };
+    }
+    if (n.cpuSpecial) return { type: 'play', call: null };
+    armCpu(G, other(G.poss), 'd');
+    return { type: 'play', call: cpuDefCall(G) };
+  };
+  GI.finishAuto = function (G) { // let the CPU play out the rest of a game
+    let guard = 0;
+    while (!G.over && guard++ < 2000) {
+      const act = GI.autoCall(G);
+      if (!act) break;
+      const res = GI.step(G, act);
+      if (res.crazy || res.clash) (G.highlights = G.highlights || []).push(res.text);
+      if (res.injury) (G.injLog = G.injLog || []).push(...res.injury.map((i) => ({ team: G.teams[i.side].idx, name: i.name, pos: i.pos })));
+    }
+    return G;
+  };
+  GI.simGame = function (homeIdx, awayIdx, opts) {
+    const o = Object.assign({ qMin: 8, diff: 'pro' }, opts || {});
+    const G = GI.newGame(Object.assign({}, o, { user: homeIdx, opp: awayIdx, userHome: true, potw: { off: GI.OFF_PLAYS[ri(0, 4)].id, def: GI.DEF_PLAYS[ri(0, 5)].id } }));
+    G.diff = 'pro';
+    GI.finishAuto(G);
+    return G;
+  };
+  GI.gameInjuries = function (G) { // star ids hurt during this game
+    const out = [];
+    ['home', 'away'].forEach((s) => G.teams[s].stars.forEach((st) => { if (st.injured) out.push({ id: st.id, team: G.teams[s].idx, name: st.name, pos: st.pos }); }));
+    return out;
+  };
 
   // ---------- save / load ----------
   const KEY = 'gridiron_save_v1';

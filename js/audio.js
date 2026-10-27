@@ -90,6 +90,7 @@
     clash: () => { tone(1800, 0.5, 'square', 0.06, null, 900); tone(1200, 0.6, 'triangle', 0.1, null, 400); noise(0.35, 0.6, 'highpass', 2500); tone(60, 0.4, 'sine', 0.6, null, 30); },
     star: () => { const t = ctx.currentTime; [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.22, 'triangle', 0.1, t + i * 0.05)); swell(0.35, 1.6); },
     flag: () => { tone(1400, 0.08, 'square', 0.06); tone(1400, 0.08, 'square', 0.06, ctx.currentTime + 0.12); },
+    paper: () => { const t = ctx.currentTime; for (let i = 0; i < 5; i++) noise(0.12, 0.18, 'bandpass', 1200 + i * 500, t + i * 0.12, 1.2); tone(90, 0.25, 'sine', 0.5, t + 0.75, 50); noise(0.2, 0.4, 'lowpass', 600, t + 0.75); },
     horn: () => { tone(220, 1.1, 'sawtooth', 0.12); tone(277, 1.1, 'sawtooth', 0.09); tone(330, 1.1, 'sawtooth', 0.07); },
   };
 
