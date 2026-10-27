@@ -1028,3 +1028,4 @@ button.ichip { cursor: pointer; } button.ichip:active { transform: scale(.97); }
 .linkbtn { background: none; border: 0; color: #8c97b4; font-size: 12.5px; font-weight: 700; text-decoration: underline; padding: 6px 0 0; }
 .ico.wx { width: 1.05em; height: 1.05em; vertical-align: -0.15em; } .habit .ico, .situ .ico, .tool .ico, .splits .ico, .venueline .ico { width: 14px; height: 14px; vertical-align: -2px; } h3 > .ico { width: 18px; height: 18px; vertical-align: -2px; color: var(--gold); } .rivalry .ico { width: 16px; height: 16px; vertical-align: -2px; }
 .edge span .ico, .cond .big .ico, .stadchips .ico { width: 1em; height: 1em; vertical-align: -0.12em; color: var(--gold); }
+.emo .ico { width: 1.05em; height: 1.05em; vertical-align: -0.16em; margin: 0 .05em; } .btn .emo .ico, .pill .emo .ico { color: currentColor; }

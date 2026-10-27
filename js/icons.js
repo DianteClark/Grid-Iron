@@ -61,9 +61,34 @@
     plane: '<path d="M2 16l20-8-6 13-3-6z"/><path d="M13 15L22 8"/>',
 
   };
+  const P2 = {
+    x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  };
+  Object.assign(P, P2);
   GI.ICON = P;
   // emoji that still live in older story text → the matching line icon
-  const EMO = { '🔥': 'flame', '🤝': 'mentor', '🧠': 'eye', '⚔️': 'target', '⚔': 'target', '🪓': 'flame', '🔁': 'trade', '😤': 'flame', '🎓': 'mentor', '😒': 'diva', '📈': 'chart', '📉': 'chart', '🗯️': 'leader', '⏳': 'clock', '📜': 'scroll', '🏅': 'trophy', '🗣️': 'leader', '🙊': 'diva', '💸': 'coin', '🔄': 'trade', '🎩': 'star', '👑': 'star', '🏟️': 'stadium', '⭐': 'star', '★': 'star', '💍': 'trophy', '🛡️': 'ironman', '📣': 'leader' };
+  const EMO = { '🔥': 'flame', '🤝': 'mentor', '🧠': 'eye', '⚔': 'target', '🪓': 'flame', '🔁': 'trade', '🔄': 'trade', '😤': 'flame', '🎓': 'mentor', '😒': 'diva', '😎': 'star', '📈': 'chart', '📉': 'chart', '🗯': 'leader', '⏳': 'clock', '⏱': 'clock', '📜': 'scroll', '🏅': 'trophy', '🏆': 'trophy', '🗣': 'leader', '🙊': 'diva', '💸': 'coin', '💰': 'coin', '🪙': 'coin', '🎩': 'star', '👑': 'star', '🏟': 'stadium', '⭐': 'star', '🌟': 'star', '💍': 'trophy', '🛡': 'ironman', '📣': 'leader', '🎙': 'leader',
+    '⚡': 'spark', '✨': 'spark', '💥': 'spark', '🚀': 'spark', '🌊': 'spark', '💙': 'spark', '🏋': 'gymrat', '🔭': 'scout', '🔎': 'scout', '🕵': 'scout', '🩺': 'medic', '🩹': 'medic', '🚑': 'medic', '🏠': 'home', '✈': 'plane', '📍': 'pin', '📌': 'pin', '📰': 'gazette', '📂': 'gazette', '📒': 'album', '📋': 'whistle', '🧢': 'whistle', '🎯': 'target',
+    '🏛': 'pillar', '✅': 'check', '✔': 'check', '❌': 'x', '🎞': 'film', '🎲': 'auto', '⏩': 'ffwd', '🌦': 'rain', '☀': 'sun', '🌤': 'open', '🌧': 'rain', '❄': 'snow', '🧊': 'snow', '💨': 'wind', '🌡': 'heat', '🌱': 'open', '👥': 'roster', '🪑': 'roster', '🎮': 'pad', '🧩': 'puzzle', '🔑': 'key', '🃏': 'cards', '👀': 'eye', '💡': 'bulb', '🏈': 'ball', '🧎': 'kneel',
+    '🎊': 'star', '🎆': 'star', '🎉': 'star', '🛍': 'store', '📊': 'standings', '🏗': 'office', '✍': 'office', '🪟': 'retract', '🐂': 'flame', '🧱': 'ironman', '💅': 'diva', '💎': 'biggame', '🤲': 'mentor', '🏋️': 'gymrat', '📥': 'plus', '🔔': 'leader', '💾': 'album', '🌍': 'open', '😬': 'diva', '🙌': 'star', '👋': 'leader', '🍀': 'spark', '🎟': 'stadium', '🧮': 'chart' };
+  GI.emo = (e) => { const k = String(e || '').replace(/\uFE0F/g, ''); return EMO[k] ? GI.ico(EMO[k]) : k && /^[\x00-\x7f★✕]*$/.test(k) ? k : GI.ico('spark'); };
+  // swap emoji for line icons in rendered text (screens, modals, toasts); unknown emoji are left alone
+  const KEYS = Object.keys(EMO).sort((a, b) => b.length - a.length).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const RX = new RegExp('(' + KEYS.join('|') + ')\uFE0F?', 'gu');
+  GI.deEmoji = function (root) {
+    if (!root || typeof document === 'undefined') return;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.parentNode && /^(TEXTAREA|INPUT|SCRIPT|STYLE|OPTION|TITLE)$/.test(n.parentNode.nodeName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+    const hits = [];
+    let n; while ((n = w.nextNode())) { RX.lastIndex = 0; if (RX.test(n.nodeValue)) hits.push(n); }
+    hits.forEach((t) => {
+      RX.lastIndex = 0;
+      const span = document.createElement('span');
+      span.className = 'emo';
+      const esc = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      span.innerHTML = esc(t.nodeValue).replace(RX, (m, k) => GI.ico(EMO[k]));
+      t.parentNode.replaceChild(span, t);
+    });
+  };
   GI.emo = (e) => (EMO[e] ? GI.ico(EMO[e]) : e && /^[\x00-\x7f]*$/.test(e) ? e : GI.ico('spark'));
   GI.ico = (name, cls) => `<svg class="ico ${cls || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
   // traits get a real icon instead of an emoji

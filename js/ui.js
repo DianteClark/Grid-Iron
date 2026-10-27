@@ -75,6 +75,16 @@
   };
   const icon = (id) => `<svg viewBox="0 0 32 22" aria-hidden="true">${ICON[id] || ICON[GI.baseOf ? GI.baseOf(id) : id] || ''}</svg>`;
 
+  // v1: no emoji in the chrome. Anything rendered gets its emoji swapped for line icons.
+  if (GI.deEmoji && typeof MutationObserver !== 'undefined') {
+    GI.deEmoji(document.body);
+    new MutationObserver((ms) => {
+      ms.forEach((m) => m.addedNodes.forEach((n) => {
+        if (n.nodeType === 1) { if (!n.classList || !n.classList.contains('emo')) GI.deEmoji(n); }
+        else if (n.nodeType === 3 && n.parentNode && n.parentNode.nodeType === 1) GI.deEmoji(n.parentNode);
+      }));
+    }).observe(document.body, { childList: true, subtree: true });
+  }
   // ---------- screens / overlays ----------
   function show(id) {
     const prev = $('.screen.on');
