@@ -126,7 +126,7 @@
         if (canBreak(c)) c.spark = Math.min(SPARK_MAX, (c.spark || 0.04) + SPARK_REP);
         c.invest = (c.invest || 0) + 1;
         // now and then the work shows up all at once
-        if (canBreak(c) && R() < (c.spark || 0) * 0.05) {
+        if (canBreak(c) && R() < (c.spark || 0) * 0.02) {
           const b0 = c.rating, j = breakthrough(c, 1);
           if (j) (S._breaks = S._breaks || []).push({ name: c.name, pos: c.pos, jump: c.rating - b0, rating: c.rating });
         }
@@ -150,15 +150,15 @@
     return 0;
   }
   // the breakthrough: young players can suddenly arrive. The ones you've invested in arrive further.
-  const SPARK_REP = 0.02, SPARK_MAX = 0.5;
+  const SPARK_REP = 0.008, SPARK_MAX = 0.3;
   const canBreak = (c) => c.age <= 26 || (c.yrsPro || 0) <= 3;
   function breakthrough(c, chance) {
     if (!canBreak(c)) return 0;
     if (R() >= chance) return 0;
     const jump = 4 + Math.floor(R() * 5);
-    const lift = 4 + Math.round(Math.min(SPARK_MAX, c.spark || 0) * 16) + Math.min(6, Math.floor((c.invest || 0) / 8)); // reps raise the new ceiling
+    const lift = 2 + Math.round(Math.min(SPARK_MAX, c.spark || 0) * 10) + Math.min(3, Math.floor((c.invest || 0) / 12)); // reps raise the new ceiling
     c.pot = Math.min(99, Math.max(c.pot || 0, c.rating + jump + lift));
-    c.spark = Math.max(0.04, (c.spark || 0) * 0.45);
+    c.spark = Math.max(0.03, (c.spark || 0) * 0.3);
     c.breaks = (c.breaks || 0) + 1;
     return growOvr(c, jump);
   }

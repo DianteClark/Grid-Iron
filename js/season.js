@@ -61,7 +61,7 @@
       p.unit = pos === 'OL' || pos === 'DL';
       if (p.unit) { p.name = pick(GI.cards.LINE_NAMES[pos]); p.num = null; }
       if (!vet && R() < 0.06) { p.gem = true; p.pot = Math.min(99, p.pot + ri(6, 12)); p.spark = 0.3; } // a hidden gem
-      else if (!vet && R() < 0.09) { p.ceiling = true; p.pot = Math.min(97, Math.max(p.pot, p.rating + ri(20, 28))); p.spark = Math.max(p.spark, 0.12); } // a franchise ceiling: good scouts see the A grade
+      else if (!vet && R() < 0.09) { p.ceiling = true; p.pot = Math.min(97, Math.max(p.pot, p.rating + ri(16, 24))); p.spark = Math.max(p.spark, 0.12); } // a franchise ceiling: good scouts see the A grade
     }
     p.salary = vet ? askSalary(p) : rookieSalary(p);
     return p;
