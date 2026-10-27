@@ -150,13 +150,13 @@
     return 0;
   }
   // the breakthrough: young players can suddenly arrive. The ones you've invested in arrive further.
-  const SPARK_REP = 0.008, SPARK_MAX = 0.3;
+  const SPARK_REP = 0.007, SPARK_MAX = 0.3;
   const canBreak = (c) => c.age <= 26 || (c.yrsPro || 0) <= 3;
   function breakthrough(c, chance) {
     if (!canBreak(c)) return 0;
     if (R() >= chance) return 0;
     const jump = 4 + Math.floor(R() * 5);
-    const lift = 2 + Math.round(Math.min(SPARK_MAX, c.spark || 0) * 10) + Math.min(3, Math.floor((c.invest || 0) / 12)); // reps raise the new ceiling
+    const lift = 1 + Math.round(Math.min(SPARK_MAX, c.spark || 0) * 6) + Math.min(2, Math.floor((c.invest || 0) / 15)); // reps raise the new ceiling
     c.pot = Math.min(99, Math.max(c.pot || 0, c.rating + jump + lift));
     c.spark = Math.max(0.03, (c.spark || 0) * 0.3);
     c.breaks = (c.breaks || 0) + 1;
