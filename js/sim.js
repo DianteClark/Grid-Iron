@@ -461,7 +461,12 @@
   // how hard the CPU leans on your tendencies (softened in v0.5 — it was out-reading players and winning
   // the snaps that fill meters). You get the same read on it via the tendency strip.
   const ADAPT = { rookie: 0, pro: 4, legend: 8, sim: 4 };
-  const DIFF_ADV = { rookie: -0.5, pro: -0.12, legend: 0.25, sim: 0 };
+  // v1 balance knobs (tuned by simulation: see the design doc's win-rate targets)
+  // measured over 500-game runs: +5 wins ~67%, +10 ~79%, +15 ~85%, +20 ~89%, +25 ~91%;
+  // a perfect play-caller (who somehow knows every CPU call) on a team 20 points worse wins ~26%
+  GI.BAL = GI.BAL || { talent: 0.12, knee: 12, call: 0.42, potw: 0.3, noise: 0.4 };
+  // v1: difficulty is mostly how smart the CPU is (ADAPT); this per-snap nudge stays small so talent still decides
+  const DIFF_ADV = { rookie: -0.2, pro: 0, legend: 0.12, sim: 0 };
   function cpuFourth(G) {
     if (G.down !== 4 || G.twoPt) return null;
     const diff = G.score[G.poss] - G.score[other(G.poss)];
@@ -681,7 +686,6 @@
     if (v.surface !== 'grass') { if (off === 'out_run') a += 0.08; if (off === 'long') a += 0.05; }
     if (v.surface === 'blue' && P === 'away') a -= 0.04;
     if (v.surface === 'grass' && (G.weather === 'rain' || G.weather === 'snow') && isRun) a -= 0.05;
-    if (v.climate === 'alpine' && v.roof === 'open' && P === 'away' && G.q >= 4) a -= 0.08;
     return a;
   }
 
@@ -804,23 +808,27 @@
       return res;
     }
 
-    let a = matrix;
+    // v1: talent first. The call nudges, the effective-rating gap decides.
+    const BAL = GI.BAL;
+    let a = matrix * BAL.call;
+    const fP = GI.effRating(G, P), fD = GI.effRating(G, D);
+    res.eff = { off: fP.eff, def: fD.eff };
     const unit = isRun ? ro.run * 0.6 + ro.ol * 0.4 - (rd.runD * 0.7 + rd.rush * 0.3)
       : isPass ? ro.pass * 0.65 + ro.ol * 0.35 - (rd.passD * 0.65 + rd.rush * 0.35)
         : (ro.pass + ro.run) / 2 - (rd.passD + rd.runD) / 2;
-    a += unit / 16;
-    a += (ot.coaches.oc.rating - dt.coaches.dc.rating) / 45;
+    // a concave curve: the first few points of edge matter most, a huge gap is "very likely", not "certain"
+    const tg = unit + fP.d.off - fD.d.def;
+    a += (BAL.knee ? tg / (1 + Math.abs(tg) / BAL.knee) : tg) * BAL.talent;
     res.potw = false;
     // Play of the Week: only a few reps per game
-    if (P === G.user && off === G.potw.off && G.potwLeft.off > 0) { a += 0.7; G.potwLeft.off--; res.potw = 'off'; }
-    if (D === G.user && def === G.potw.def && G.potwLeft.def > 0) { a -= 0.7; G.potwLeft.def--; res.potw = 'def'; }
-    if (P !== G.user && off === G.cpuPotw.off && G.cpuPotwLeft.off > 0) { a += 0.7; G.cpuPotwLeft.off--; res.cpuPotw = 'off'; }
-    if (D !== G.user && def === G.cpuPotw.def && G.cpuPotwLeft.def > 0) { a -= 0.7; G.cpuPotwLeft.def--; res.cpuPotw = 'def'; }
+    if (P === G.user && off === G.potw.off && G.potwLeft.off > 0) { a += BAL.potw; G.potwLeft.off--; res.potw = 'off'; }
+    if (D === G.user && def === G.potw.def && G.potwLeft.def > 0) { a -= BAL.potw; G.potwLeft.def--; res.potw = 'def'; }
+    if (P !== G.user && off === G.cpuPotw.off && G.cpuPotwLeft.off > 0) { a += BAL.potw; G.cpuPotwLeft.off--; res.cpuPotw = 'off'; }
+    if (D !== G.user && def === G.cpuPotw.def && G.cpuPotwLeft.def > 0) { a -= BAL.potw; G.cpuPotwLeft.def--; res.cpuPotw = 'def'; }
     // predictable: same call 3+ snaps in a row gets read by the defense / offense
     const runOf = (h, c) => { let n = 0; for (const x of h) { if (x === c) n++; else break; } return n; };
-    if (P === G.user) { const n = runOf(G.hist.off, off); if (n >= 3) { a -= n >= 4 ? 0.9 : 0.5; res.predictable = true; } }
-    if (D === G.user) { const n = runOf(G.hist.def, def); if (n >= 3) { a += n >= 4 ? 0.9 : 0.5; res.predictable = true; } }
-    a += (G.morale[P] - G.morale[D]) / 150;
+    if (P === G.user) { const n = runOf(G.hist.off, off); if (n >= 3) { a -= (n >= 4 ? 0.9 : 0.5) * BAL.call; res.predictable = true; } }
+    if (D === G.user) { const n = runOf(G.hist.def, def); if (n >= 3) { a += (n >= 4 ? 0.9 : 0.5) * BAL.call; res.predictable = true; } }
     // momentum: whoever has it plays a little faster
     a += (momFor(G, P) / 100) * 0.18;
     // situational football: down, distance and field position
@@ -847,11 +855,10 @@
     if (off === 'long') a += W.long;
     if (isRun) a += W.run;
     if (off === 'trick') a += W.pass * 0.5;
-    if (P === 'away') a -= (crowdEff(G) / 100) * 0.25;
     a += venueAdv(G, P, off, isRun);
     if (G.weather === 'heat' && G.q >= 4) a += (ro.ovr - rd.ovr) / 40;
     a += (P === G.user ? -1 : 1) * DIFF_ADV[G.diff];
-    a += gauss(0, 0.35);
+    a += gauss(0, BAL.noise);
     a = clamp(a, -4, 4);
     res.adv = a;
 

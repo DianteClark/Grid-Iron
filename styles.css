@@ -815,3 +815,13 @@ button:focus:not(:focus-visible) { outline: none; }
 .keys li { margin: 6px 0; } .keys li::marker { font-family: var(--disp); font-weight: 900; color: var(--green); }
 .dailychip { margin: -2px 0 0; text-align: center; font-size: 13px; color: var(--gold); font-weight: 600; }
 #pickSort { margin: -4px 0 10px; }
+/* v1: effective rating */
+.effrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.effside.r { text-align: right; } .effside.r .effnum { justify-content: flex-end; } .effside.r .effmods li { flex-direction: row-reverse; }
+.effnum { display: flex; align-items: baseline; gap: 8px; font-family: var(--disp); font-weight: 900; font-style: italic; }
+.effnum small { font-size: 22px; color: var(--muted); } .effnum span { color: var(--muted); } .effnum b { font-size: 44px; line-height: 1; }
+.effmods { list-style: none; margin: 6px 0 0; padding: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.effmods li { display: flex; gap: 6px; align-items: baseline; padding: 2px 0; } .effmods li b { font-family: var(--disp); font-size: 15px; min-width: 30px; }
+.effmods li.up b { color: var(--green); } .effmods li.dn b { color: var(--red); } .effmods i { display: block; font-style: normal; font-size: 11px; opacity: .75; }
+.effodds { margin-top: 12px; } .effodds p { margin: 6px 0 0; font-size: 13.5px; }
+.oddsbar { height: 10px; border-radius: 99px; background: var(--card3); overflow: hidden; } .oddsbar i { display: block; height: 100%; border-radius: 99px; }

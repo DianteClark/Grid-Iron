@@ -434,6 +434,16 @@
       <div class="sticker cond"><div class="label">Weather</div><div class="big">${W.icon} ${W.name}</div><div class="muted" style="font-size:12.5px">${G.roofNote ? esc(G.roofNote) : W.desc}</div></div>
       <div class="sticker cond"><div class="label">Crowd</div><div class="big">📣 ${G.crowd.name}</div><div class="muted" style="font-size:12.5px">${G.neutral ? 'Split down the middle. No home edge.' : G.crowd.level >= 50 ? `Fires up ${homeT.abbr} stars, rattles the road offense` : 'Quiet day. Little home edge.'}</div></div>`;
     const rows = [['RUN', 'run'], ['PASS', 'pass'], ['LINE', 'ol'], ['RUN D', 'runD'], ['PASS D', 'passD'], ['RUSH', 'rush'], ['ST', 'st']];
+    // v1: the effective rating — talent first, then everything that nudges it
+    G.effMods = null;
+    const eu = GI.effRating(G, G.user), eo = GI.effRating(G, other(G.user));
+    const modList = (e) => e.mods.length ? e.mods.map((m) => `<li class="${m.v > 0 ? 'up' : 'dn'}"><b>${m.v > 0 ? '+' : ''}${m.v}</b><span>${esc(m.label)}${m.scope !== 'all' ? `<i>${m.scope === 'off' ? 'on offense' : m.scope === 'def' ? 'on defense' : 'in the kicking game'}</i>` : ''}</span></li>`).join('') : '<li class="muted">No edges either way</li>';
+    const effGap = eu.eff - eo.eff;
+    const odds = GI.winOdds ? GI.winOdds(effGap) : null;
+    $('#pgEff').innerHTML = `<h3>📊 Effective rating</h3>
+      <div class="effrow"><div class="effside"><span class="label">${esc(ut.abbr)}</span><div class="effnum"><small>${eu.base}</small><span>→</span><b>${eu.eff}</b></div><ul class="effmods">${modList(eu)}</ul></div>
+      <div class="effside r"><span class="label">${esc(ot.abbr)}</span><div class="effnum"><small>${eo.base}</small><span>→</span><b>${eo.eff}</b></div><ul class="effmods">${modList(eo)}</ul></div></div>
+      ${odds != null ? `<div class="effodds"><div class="oddsbar"><i style="width:${odds}%;background:${ut.c1}"></i></div><p>${effGap === 0 ? 'Dead even on paper.' : effGap > 0 ? `You're the better team by ${effGap}.` : `They're better by ${-effGap}.`} Expected win chance: <b>${odds}%</b>. Your calls and impact moments move it from there.</p></div>` : ''}`;
     $('#pgBars').innerHTML = `<div class="row between"><span class="label">${ut.abbr}</span><span class="label">Tale of the tape</span><span class="label">${ot.abbr}</span></div>` +
       rows.map(([k, key]) => `<div class="bar"><span class="v">${ur[key]}</span><div class="track l"><div class="fill" style="width:${ur[key]}%;background:${ut.c1}"></div></div><span class="k">${k}</span><div class="track"><div class="fill" style="width:${orr[key]}%;background:${ot.c1}"></div></div><span class="v">${orr[key]}</span></div>`).join('');
     renderPotw();
