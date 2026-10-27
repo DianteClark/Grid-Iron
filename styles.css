@@ -928,3 +928,24 @@ button:focus:not(:focus-visible) { outline: none; }
 .tierup.t-gold h2 { color: #ffd54d; } .tierup.t-elite h2 { color: #c9b4ff; } .tierup.t-star h2 { color: #ffc53d; } .tierup.t-silver h2 { color: #eef2f8; }
 @media (prefers-reduced-motion: reduce) { .tu-card .pcard { animation: none; } }
 .pickwrap .room { top: 8px; right: 8px; left: auto; bottom: auto; transform: none; }
+
+/* ===== v1 playbook: formation tabs, counter book ===== */
+.ftabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 3px; border-radius: 11px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.07); margin-bottom: 4px; }
+.ftab { position: relative; padding: 7px 2px; border-radius: 8px; font-family: var(--disp); font-weight: 800; font-size: 13.5px; letter-spacing: .4px; text-transform: uppercase; color: #8c97b4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ftab.on { background: linear-gradient(180deg, #2e3d63, #1f2a47); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px rgba(77,141,255,.35); }
+.ftab .fp, .ftab .fa { position: absolute; top: 3px; width: 6px; height: 6px; border-radius: 50%; }
+.ftab .fp { right: 4px; background: var(--gold); } .ftab .fa { left: 4px; background: var(--red); }
+.fdesc { margin: 0 3px 7px; font-size: 12px; font-weight: 600; color: #6f7a98; }
+.play.coachc { min-height: 40px; flex-direction: row; gap: 8px; background: rgba(255,255,255,.05); }
+.play.coachc small { margin: 0; text-transform: none; letter-spacing: 0; font-size: 11.5px; }
+.play.coachc svg { width: 22px; height: 15px; }
+.cbook { margin-bottom: 10px; }
+.crow { display: grid; grid-template-columns: 30px 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.crow .ci { grid-row: span 3; color: var(--green); } .crow .ci svg { width: 28px; height: 19px; }
+.crow b { font-family: var(--disp); font-size: 16px; text-transform: uppercase; }
+.crow .cw { color: #c8d0e6; } .crow .cw i { font-style: normal; font-weight: 800; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; margin-right: 4px; }
+.crow .cw i.m2 { background: rgba(255,77,94,.18); color: #ff8a96; } .crow .cw i.p2 { background: rgba(46,226,122,.16); color: #5df0a0; }
+#pgPotw .potw-grid button { font-size: 14px; min-height: 40px; }
+.intel .ico { width: 15px; height: 15px; vertical-align: -2px; }
+@media (max-height: 500px) and (orientation: landscape) { .fdesc { display: none; } .ftab { padding: 4px 2px; font-size: 12.5px; } .play.coachc { min-height: 32px; } }
+.fdesc b { color: #c8d0e6; }

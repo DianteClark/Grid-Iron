@@ -18,6 +18,14 @@
     if (call === 'blitz_out') { f.WLB = [-8, 1.8]; f.SLB = [8, 1.8]; f.DE1 = [-4.5, 1]; f.DE2 = [4.5, 1]; }
     return f;
   }
+  // v1 formations: where the backfield and the slot line up before the snap
+  function FOf(form) {
+    const f = JSON.parse(JSON.stringify(FO));
+    if (form === 'iform') { f.QB = [0, -1.9]; f.WR3 = [0, -4.4]; f.RB = [0, -7.2]; f.WR1 = [-17, -1.2]; }
+    if (form === 'single') { f.QB = [0, -1.9]; f.RB = [0, -6.6]; f.WR3 = [-9, -1.6]; }
+    if (form === 'trick') { f.RB = [-2.4, -5.2]; f.WR3 = [-7.6, -1.8]; f.TE = [9.5, -1.6]; }
+    return f;
+  }
   const KO_O = ['LT', 'LG', 'C', 'RG', 'RT', 'TE', 'QB', 'WR1', 'WR2', 'WR3', 'RB'];
 
   function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
@@ -756,11 +764,13 @@
     return { tracks: T, ball, pops, dur, sfx };
   }
 
-  function initScrim(ctx, def) {
-    for (const r in FO) ctx.T['o:' + r] = [[0, FO[r][0], FO[r][1]]];
+  function initScrim(ctx, def, form) {
+    const fo = FOf(form);
+    for (const r in fo) ctx.T['o:' + r] = [[0, FO[r][0], FO[r][1]]];
     const z = FD('zone'), f = FD(def);
     for (const r in z) ctx.T['d:' + r] = [[0, z[r][0], z[r][1]], [0.35, f[r][0], f[r][1]], [0.45, f[r][0], f[r][1]]];
-    for (const r in FO) ctx.go('o:' + r, 0.45, FO[r][0], FO[r][1]);
+    for (const r in fo) ctx.go('o:' + r, 0.45, fo[r][0], fo[r][1]);
+    return fo;
   }
   const DROLES = Object.keys(FD0);
   const OROLES = Object.keys(FO);
@@ -778,11 +788,11 @@
 
   function buildScrimmage(res, ctx) {
     const { go, stay, at, ball, pops } = ctx;
-    initScrim(ctx, res.def);
+    const fo = initScrim(ctx, res.def, res.form);
     const S = 0.5; // snap
     const blitz = res.def === 'blitz_in' || res.def === 'blitz_out';
     ball.push({ type: 'hold', who: 'o:C', t0: 0, t1: S });
-    ball.push({ type: 'air', from: [0, -1], to: [0, -5], h: 0.4, t0: S, t1: S + 0.14 });
+    ball.push({ type: 'air', from: [0, -1], to: [fo.QB[0], fo.QB[1]], h: fo.QB[1] > -3 ? 0.1 : 0.4, t0: S, t1: S + (fo.QB[1] > -3 ? 0.06 : 0.14) });
     const isRunPlay = res.kind === 'run' && !res.trick;
     // default OL / DL engagement
     ['LT', 'LG', 'C', 'RG', 'RT'].forEach((r) => { const p = at('o:' + r); go('o:' + r, S + 0.35, p[0] * 1.05, isRunPlay ? 0 : -2.2); });

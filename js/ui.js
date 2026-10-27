@@ -47,9 +47,33 @@
     blitz_out: `<path d="M4 3l8 13M28 3l-8 13M9 16h4v-4M23 16h-4v-4" ${A}/>`,
     punt: `<path d="M6 20l10-6M16 14C18 5 26 4 28 8" ${A}/>`,
     fg: `<path d="M10 4v8h12V4M16 12v9" ${A}/>`,
+    // v1 playbook: a little diagram for every play
+    power: `${dot(16, 20)}${dot(16, 12)}<path d="M16 8V2M12 6l4-4 4 4" ${A}/>`,
+    counter: `${dot(16, 19)}<path d="M16 15l-5-3 10-8M17 4h4v4" ${A}/>`,
+    pa_boot: `${dot(12, 19)}<path d="M12 15c4 0 9-1 11-4" ${A}/><path d="M23 11C23 6 19 3 10 2" ${A} stroke-dasharray="3 3"/>`,
+    slants: `${dot(8, 19)}${dot(22, 19)}<path d="M8 15v-3l7-7M22 15v-3l-7-7" ${A} stroke-dasharray="3 3"/>`,
+    verticals: `<path d="M5 20V5M12 20V3M20 20V3M27 20V5M2 8l3-3 3 3M24 8l3-3 3 3" ${A}/>`,
+    bubble: `${dot(10, 19)}<path d="M10 16l12-3" ${A} stroke-dasharray="3 3"/><path d="M22 13c3 0 5-3 5-8M24 7l3-3 3 3" ${A}/>`,
+    stretch: `${dot(6, 19)}<path d="M6 15c0-3 7-5 19-5M21 6l4 4-4 4" ${A}/>`,
+    draw: `${dot(16, 19)}<rect x="12" y="9" width="8" height="5" rx="1.5" ${A}/><path d="M16 9V2M13 5l3-3 3 3" ${A}/>`,
+    mesh: `<path d="M4 7l24 8M28 7L4 15" ${A}/><path d="M24 11l4 4-5 1M8 11l-4 4 5 1" ${A}/>`,
+    flea: `${dot(16, 20)}<path d="M16 16V10c-4 0-4 6 0 6" ${A}/><path d="M18 9C22 7 25 5 27 2" ${A} stroke-dasharray="3 3"/>`,
+    reverse: `${dot(16, 19)}<path d="M16 15H7c-2 0-3-2-1-4 3-4 10-6 20-6M22 2l4 3-4 3" ${A}/>`,
+    rb_screen: `${dot(16, 19)}<path d="M16 15c-5 0-9-1-10-6" ${A} stroke-dasharray="3 3"/><path d="M6 9h8M11 6l3 3-3 3" ${A}/>`,
+    cover2: `${dot(9, 5)}${dot(23, 5)}<path d="M4 18c3-6 21-6 24 0" ${A} stroke-dasharray="3 3"/>`,
+    cover3: `${dot(5, 6)}${dot(16, 4)}${dot(27, 6)}<path d="M6 18h20" ${A} stroke-dasharray="3 3"/>`,
+    run_commit: `${dot(5, 14)}${dot(11, 12)}${dot(16, 11)}${dot(21, 12)}${dot(27, 14)}<path d="M16 2v4" ${A}/>`,
+    man1: `${dot(16, 4)}${dot(8, 15)}${dot(24, 15)}<path d="M8 11v-1M24 11v-1" ${A}/>`,
+    robber: `${dot(16, 11)}<path d="M5 18c4-4 18-4 22 0M16 6V2" ${A} stroke-dasharray="3 3"/><path d="M12 11h-6M20 11h6" ${A}/>`,
+    quarters: `${dot(4, 6)}${dot(12, 4)}${dot(20, 4)}${dot(28, 6)}<path d="M4 16h24" ${A} stroke-dasharray="3 3"/>`,
+    prevent: `<path d="M2 14C6 2 26 2 30 14" ${A}/>${dot(8, 9)}${dot(16, 6)}${dot(24, 9)}`,
+    tampa: `${dot(9, 5)}${dot(23, 5)}${dot(16, 15)}<path d="M16 11V6M13 8l3-3 3 3" ${A}/>`,
+    agap: `<path d="M13 2v15M19 2v15M10 13l3 4 3-4M16 13l3 4 3-4" ${A}/>`,
+    edge: `<path d="M4 3l8 13M28 3l-8 13M9 16h4v-4M23 16h-4v-4" ${A}/>`,
+    zero: `<path d="M5 2v13M16 2v13M27 2v13M2 11l3 4 3-4M13 11l3 4 3-4M24 11l3 4 3-4" ${A}/>`,
     dice: `<rect x="7" y="4" width="18" height="16" rx="4" ${A}/>${dot(12, 9)}${dot(20, 15)}`,
   };
-  const icon = (id) => `<svg viewBox="0 0 32 22" aria-hidden="true">${ICON[id] || ''}</svg>`;
+  const icon = (id) => `<svg viewBox="0 0 32 22" aria-hidden="true">${ICON[id] || ICON[GI.baseOf ? GI.baseOf(id) : id] || ''}</svg>`;
 
   // ---------- screens / overlays ----------
   function show(id) {
@@ -151,6 +175,10 @@
     if (k === 'b') $('#gbStats').click();
     if (k === 'c') $('#gbTac').click();
     if (k === 't') { const b = $('#psheet.open [data-act="to"]'); if (b) b.click(); }
+    if (k === 'arrowleft' || k === 'arrowright' || k === 'q' || k === 'e') {
+      const tabs = $$('#psheet.open .ftab'); const i = tabs.findIndex((b) => b.classList.contains('on'));
+      if (tabs.length && i >= 0) { e.preventDefault(); tabs[(i + (k === 'arrowleft' || k === 'q' ? tabs.length - 1 : 1)) % tabs.length].click(); }
+    }
   });
   // keep the screen awake during games; save if the app gets backgrounded
   let wake = null;
@@ -499,8 +527,8 @@
       rows.map(([k, key]) => `<div class="bar"><span class="v">${ur[key]}</span><div class="track l"><div class="fill" style="width:${ur[key]}%;background:${ut.c1}"></div></div><span class="k">${k}</span><div class="track"><div class="fill" style="width:${orr[key]}%;background:${ot.c1}"></div></div><span class="v">${orr[key]}</span></div>`).join('');
     renderPotw();
     const oc = ot.coaches.oc, dc = ot.coaches.dc;
-    const ocHint = { run: 'Lean on Blitz In / Blitz Out to stuff the run.', pass: 'Cover Long and Press take away the air game.', gadget: 'Man coverage kills trick plays.', balanced: 'No obvious tell. Mix it up.' }[oc.style];
-    const dcHint = { blitz: 'Trick plays and outside runs punish the blitz.', cover: 'Inside runs and short passes eat soft coverage.', press: 'Go deep over the press.', balanced: 'No obvious tell. Watch their tendencies.' }[dc.style];
+    const ocHint = { run: 'Run Commit and the blitzes stuff the ground game.', pass: 'Cover 4, Robber and Press Man take away the air game.', gadget: 'Prevent, Cover 0 and Cover 1 Man shut down the gadgets.', balanced: 'No obvious tell. Mix it up.' }[oc.style];
+    const dcHint = { blitz: 'Draws, bubbles and counters punish the blitz.', cover: 'Power runs and slants eat soft coverage.', press: 'Mesh, WR Reverse and Flea Flicker beat the man looks.', balanced: 'No obvious tell. Watch their tendencies.' }[dc.style];
     const idn = ot.identity && GI.IDENTITIES[ot.identity];
     const keys = [];
     const gap = (a, b) => a - b;
@@ -510,7 +538,7 @@
       [gap(ur.passD, orr.pass), `Make them run it: your secondary (${ur.passD}) can take away their passing game.`],
       [gap(ur.runD, orr.run), `Sell out vs the pass: your run defense (${ur.runD}) can handle their ground game alone.`],
       [gap(orr.rush, ur.ol), `Get the ball out fast: their pass rush (${orr.rush}) beats your line (${ur.ol}). Short passes and runs.`],
-      [gap(orr.pass, ur.passD), `Danger through the air: their passing game (${orr.pass}) outclasses your coverage. Dial up Cover Long and Press.`],
+      [gap(orr.pass, ur.passD), `Danger through the air: their passing game (${orr.pass}) outclasses your coverage. Dial up Cover 4 and Press Man.`],
     ].sort((a, b) => b[0] - a[0]);
     opts.filter((x) => x[0] >= 4).slice(0, 2).forEach((x) => keys.push(x[1]));
     if (!keys.length) keys.push('Dead even on paper. Win the counter-call battle and the turnover margin.');
@@ -519,7 +547,7 @@
       <h3 style="margin-top:16px">🔎 Scouting ${ot.abbr}</h3>
       <ul class="scout"><li><b>OC ${oc.name}</b> — ${GI.OC_STYLES[oc.style]}. ${ocHint}</li><li><b>DC ${dc.name}</b> — ${GI.DC_STYLES[dc.style]}. ${dcHint}</li>
       ${idn ? `<li><b>Playbook:</b> ${idn.icon} ${idn.name}. ${idn.desc}</li>` : ''}
-      ${G.intel ? `<li class="intel">📂 <b>Leaked:</b> their Play of the Week is <b>${GI.playName(G.cpuPotw.off)}</b> on offense and <b>${GI.playName(G.cpuPotw.def)}</b> on defense.</li>` : '<li class="muted">They have their own Play of the Week too. You won\'t know it unless the Gazette gets a leak.</li>'}
+      ${G.intel ? `<li class="intel">${GI.ico('eye')} <b>Leaked:</b> their go-to play is <b>${GI.playName(G.cpuPotw.off)}</b> (counter: <b>${GI.playName(GI.counterOf(G.cpuPotw.off))}</b>). On defense they trust <b>${GI.playName(G.cpuPotw.def)}</b>.</li>` : '<li class="muted">They have their own Play of the Week too. You won\'t know it unless the Gazette gets a leak.</li>'}
       ${G.film ? '<li class="bad">🎞️ They studied your film — they\'ll sit on your offensive Play of the Week.</li>' : ''}
       <li class="muted">${G.diff === 'rookie' ? 'Rookie level: they won\'t adjust to you.' : 'They adapt a little. Call the same play too often and they\'ll sit on it — and their tendencies show in the play sheet.'}</li></ul>
       <div class="label" style="margin-top:14px">Your staff</div>
@@ -538,7 +566,8 @@
     const hc = G.teams[G.user].coaches.hc;
     const grid = (list, cur, key) => `<div class="potw-grid">${list.map((p) => `<button data-k="${key}" data-v="${p.id}" class="${cur === p.id ? 'on' : ''}">${p.name}</button>`).join('')}</div>`;
     $('#pgPotw').innerHTML = `<h3>📌 Play of the Week</h3><p class="muted" style="margin:0 0 8px;font-size:13.5px">Coach ${hc.name.split(' ').pop()} drilled one offensive and one defensive play. Each gets a boost for <b>3 reps</b> per game — save them for big downs. Calling the same play 3+ snaps in a row gets you read.</p>
-      <div class="label">Offense</div>${grid(GI.OFF_PLAYS, G.potw.off, 'off')}<div class="label" style="margin-top:10px">Defense</div>${grid(GI.DEF_PLAYS, G.potw.def, 'def')}`;
+      <div class="label">Offense</div>${grid(GI.OFF_PLAYS, G.potw.off, 'off')}<div class="label" style="margin-top:10px">Defense</div>${grid(GI.DEF_PLAYS, G.potw.def, 'def')}
+      ${G.intel ? '' : '<p class="muted" style="margin:8px 0 0;font-size:12.5px">Tip: the Gazette\'s scouting report sometimes leaks their go-to play. Drill its counter.</p>'}`;
     $$('#pgPotw button').forEach((b) => (b.onclick = () => {
       G.potw[b.dataset.k] = b.dataset.v;
       GI.prefs.set(b.dataset.k === 'off' ? { potwOff: b.dataset.v } : { potwDef: b.dataset.v });
@@ -725,7 +754,7 @@
   }
 
   function armedFor(playId) {
-    return G.teams[G.user].stars.some((s) => s.armed && !s.injured && GI.SHOWME[s.pos].o && GI.SHOWME[s.pos].o.includes(playId));
+    return G.teams[G.user].stars.some((s) => s.armed && !s.injured && GI.SHOWME[s.pos].o && GI.SHOWME[s.pos].o.includes(GI.baseOf(playId)));
   }
   function playBtn(p, kind) {
     const isPotw = kind === 'off' ? G.potw.off === p.id : G.potw.def === p.id;
@@ -747,6 +776,26 @@
       ${tip ? `<div class="situ">💡 ${tip}</div>` : ''}`;
   }
 
+  // the playbook is grouped: four formations on offense, four packages on defense
+  const bookTab = { off: null, def: null };
+  function tabsHTML(kind) {
+    const groups = kind === 'off' ? GI.FORMATIONS : GI.FRONTS;
+    const key = kind === 'off' ? 'form' : 'front';
+    const list = kind === 'off' ? GI.OFF_PLAYS : GI.DEF_PLAYS;
+    if (!bookTab[kind] || !groups.some((g) => g.id === bookTab[kind])) {
+      const last = GI.playOf(G.hist[kind][0]) || GI.playOf(G.potw[kind]);
+      bookTab[kind] = last ? last[key] : groups[0].id;
+    }
+    const cur = groups.find((g) => g.id === bookTab[kind]);
+    const tabs = groups.map((g) => {
+      const plays = list.filter((p) => p[key] === g.id);
+      const potw = plays.some((p) => p.id === G.potw[kind]) && G.potwLeft[kind] > 0;
+      const arm = kind === 'off' && plays.some((p) => armedFor(p.id));
+      return `<button class="ftab ${g.id === cur.id ? 'on' : ''}" data-tab="${g.id}" data-kind="${kind}">${g.short || g.name}${potw ? '<i class="fp"></i>' : ''}${arm ? '<i class="fa"></i>' : ''}</button>`;
+    }).join('');
+    const plays = list.filter((p) => p[key] === cur.id);
+    return { tabs: `<div class="ftabs" role="tablist">${tabs}</div><p class="fdesc"><b>${cur.name}</b> · ${cur.desc}</p>`, plays };
+  }
   function renderPanel(n) {
     const cp = $('#callpanel');
     clearTimeout(autoTimer);
@@ -784,8 +833,10 @@
       const toolHTML = tools.length ? `<div class="tools">${tools.join('')}</div>` : '';
       if (n.userOff) {
         html = `<div class="cp-head"><span class="t">Offense · ${situ}</span>${n.fourth ? '<span class="pill red">4th down</span>' : `<span class="pill">${GI.spotLabel(G)}</span>`}</div>${toolHTML}${G.twoPt ? '' : tendHTML()}<div class="grid">`;
-        html += GI.OFF_PLAYS.map((p) => playBtn(p, 'off')).join('');
-        html += `<button class="play" data-act="coach">${icon('dice')}<span>Coach's Call</span><small>let OC pick</small></button>`;
+        const bk = tabsHTML('off');
+        html = html.replace(/<div class="grid">$/, bk.tabs + '<div class="grid">');
+        html += bk.plays.map((p) => playBtn(p, 'off')).join('');
+        html += `<button class="play coachc wide" data-act="coach">${icon('dice')}<span>Coach's Call</span><small>OC picks from the whole book</small></button>`;
         if (n.fourth) html += `<div class="half"><button class="play sp" data-act="punt">${icon('punt')}<span>Punt</span></button><button class="play sp" data-act="fg" ${n.fgPct < 3 ? 'disabled' : ''}>${icon('fg')}<span>Field Goal</span><small>${n.fgDist} yds · ${n.fgPct}%</small></button></div>`;
         html += '</div>';
       } else if (n.cpuSpecial) {
@@ -800,12 +851,15 @@
           return;
         }
       } else {
-        html = `<div class="cp-head"><span class="t">Defense · ${situ}</span><span class="pill">${GI.spotLabel(G)}</span></div>${toolHTML}${G.twoPt ? '' : tendHTML()}<div class="grid">` + GI.DEF_PLAYS.map((p) => playBtn(p, 'def')).join('') + '</div>';
+        const bk = tabsHTML('def');
+        html = `<div class="cp-head"><span class="t">Defense · ${situ}</span><span class="pill">${GI.spotLabel(G)}</span></div>${toolHTML}${G.twoPt ? '' : tendHTML()}${bk.tabs}<div class="grid">` + bk.plays.map((p) => playBtn(p, 'def')).join('')
+          + `<button class="play coachc wide" data-act="dcoach">${icon('dice')}<span>Coach's Call</span><small>DC picks from the whole book</small></button></div>`;
       }
     }
     setStatus(null);
     cp.innerHTML = html;
     openSheet(true);
+    cp.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { bookTab[b.dataset.kind] = b.dataset.tab; sfx('tap'); renderPanel(n); }));
     cp.querySelectorAll('[data-call]').forEach((b) => (b.onclick = () => !busy && doStep({ type: 'play', call: b.dataset.call })));
     cp.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => {
       if (busy) return;
@@ -823,6 +877,7 @@
       if (a === 'to') { const saved = GI.callTimeout(G, G.user); if (saved !== false) { sfx('whistle'); toast(`⏱ Timeout! Saved ${saved}s · ${G.to[G.user]} left`, 1600); renderSB(); GI.save(G); renderPanel(GI.need(G)); } }
       if (a === 'hurry') { GI.setHurry(G, !G.hurry[G.user]); toast(G.hurry[G.user] ? '⏩ Hurry-up: snaps come fast, slightly sloppier' : 'Huddling up again', 1400); renderPanel(GI.need(G)); }
       if (a === 'coach') { const c = coachCall(); toast(`OC calls: ${GI.playName(c)}`, 1200); doStep({ type: 'play', call: c }); }
+      if (a === 'dcoach') { const c = coachDefCall(); toast(`DC calls: ${GI.playName(c)}`, 1200); doStep({ type: 'play', call: c }); }
     }));
     const tb = $('#tendBtn'); if (tb) tb.onclick = () => showTendency();
     tipOnce('calls', n.kind === 'call');
@@ -877,9 +932,19 @@
     if (st === 'gadget') w.trick *= 3;
     if (G.toGo >= 8) { w.short *= 2; w.long *= 2; w.in_run *= 0.4; }
     if (G.toGo <= 2) { w.in_run *= 2; w.long *= 0.4; }
-    G.hist.off.slice(0, 2).forEach((c) => (w[c] *= 0.35));
-    for (const k in w) if (armedFor(k)) w[k] *= 3;
-    return GI.util.wpick(w);
+    const pw = GI.spreadOff(w, st);
+    G.hist.off.slice(0, 2).forEach((c) => { if (pw[c] != null) pw[c] *= 0.35; });
+    for (const k in pw) if (armedFor(k)) pw[k] *= 3;
+    return GI.util.wpick(pw);
+  }
+  function coachDefCall() {
+    const w = { man: 18, zone: 22, deep: 14, press: 14, blitz_in: 14, blitz_out: 14 };
+    const st = G.teams[G.user].coaches.dc.style;
+    if (G.toGo >= 8) { w.deep *= 1.8; w.zone *= 1.4; }
+    if (G.toGo <= 2) { w.blitz_in *= 1.8; w.blitz_out *= 1.4; w.deep *= 0.4; }
+    const pw = GI.spreadDef(w, st);
+    G.hist.def.slice(0, 2).forEach((c) => { if (pw[c] != null) pw[c] *= 0.35; });
+    return GI.util.wpick(pw);
   }
 
   // ---------- key moments: skip the routine snaps ----------
@@ -1021,7 +1086,7 @@
     const host = $('#bannerHost');
     const userOff = res.side === G.user;
     const m = userOff ? res.matrix : -res.matrix;
-    const their = userOff ? res.def : res.off;
+    const their = userOff ? (res.dcall || res.def) : (res.call || res.off);
     const cls = m >= 1 ? 'good' : m <= -1 ? 'bad' : '';
     const why = res.reason && Math.abs(res.matrix) === 2 ? res.reason : m >= 1 ? 'Your call had the edge' : m <= -1 ? 'Their call had the edge' : 'Even matchup';
     const el = document.createElement('div');
@@ -1277,6 +1342,10 @@
     });
   }
   function chartHTML() {
+    if (GI.FORMATIONS) {
+      return GI.FORMATIONS.map((f) => `<div class="cbook"><div class="label">${f.name}</div>${GI.OFF_PLAYS.filter((p) => p.form === f.id).map((p) => `<div class="crow"><span class="ci">${icon(p.id)}</span><b>${p.name}</b><span class="cw"><i class="m2">Stopped by</i> ${GI.playName(p.counter)}</span><span class="cw"><i class="p2">Gashes</i> ${GI.playName(p.gash)}</span></div>`).join('')}</div>`).join('')
+        + '<p class="muted" style="font-size:12.5px">Every play has exactly one call that shuts it down and one it carves up. Everything else is close to even, so talent decides it.</p>';
+    }
     const cls = { 2: 'p2', 1: 'p1', 0: 'z', '-1': 'm1', '-2': 'm2' };
     const sym = { 2: '++', 1: '+', 0: '·', '-1': '−', '-2': '−−' };
     const short = { man: 'Man', zone: 'Zone', deep: 'Long', press: 'Press', blitz_in: 'Blz In', blitz_out: 'Blz Out' };
@@ -1351,14 +1420,14 @@
   }
   function showHelp() {
     modal(`<div class="row between"><h2>How to Play</h2>${closeBtn}</div><div class="help">
-      <p>Build a <b>Franchise</b> (drafts, contracts, trades, the Iron-Bowl), live a <b>Career</b> as one player from college to the Hall of Fame, or jump into a <b>Quick Game</b>.</p>
-      <h3>🧠 Calls & counters</h3><p>Five offensive plays, six defensive looks. Each offensive play has one defense that shuts it down and one it gashes. After every snap you see <b>what they called and why</b>. The play sheet shows their <b>tendencies</b> for the down and distance — read them, then call the counter.</p>${chartHTML()}
+      <p>Build a <b>Franchise</b> (drafts, contracts, trades, the Iron-Bowl) or jump into an <b>Exhibition</b>. Talent comes first: the better team wins most of the time, so building your roster is how you win. Good play-calling is how you steal the close ones.</p>
+      <h3>🧠 The playbook</h3><p>Twelve plays in four <b>formations</b> (I-Form, Shotgun, Singleback, Trick Bag) and twelve calls in four <b>defensive packages</b> (4-3, Nickel, Dime, Blitz). Switch with the tabs on the play sheet. Every play has <b>exactly one</b> call that shuts it down and one it carves up. After every snap you see <b>what they called and why</b>. The play sheet shows their <b>tendencies</b>; the Gazette's <b>scouting report</b> sometimes leaks their go-to play. Read it, then call the counter.</p>${chartHTML()}
       <p>Down & distance matter: on 3rd & long they expect a pass (runs catch them napping); short yardage favors power runs and play-action shots; the red zone squeezes deep balls. Call the same play 3 snaps in a row and you get <b>read</b>.</p>
       <h3>⏱ The clock</h3><p>The clock keeps running between snaps. Late in a half you get <b>timeouts</b> (3 per half), <b>hurry-up</b>, <b>spike</b> and <b>kneel</b>. There's a two-minute warning in the 2nd and 4th quarters.</p>
       <h3>🌊 Momentum</h3><p>Touchdowns, turnovers, sacks and star plays swing the momentum bar under the clock. Whoever has it plays a little better and the home crowd gets louder.</p>
       <h3>⭐ Star rail</h3><p>Your stars' rings fill as they make plays. At 100% a star catches fire 🔥 — arm him (or let <b>auto-arm</b> do it) and he takes over the next play where he matters. Two bad plays in a row while on fire cools him to 70%. Big moments get a slow-motion replay.</p>
       <h3>🏟️ Stadiums & weather</h3><p>Every team has a home: <b>domes</b> keep the weather out and the noise in, <b>retractable roofs</b> close when it turns ugly, and open-air parks get the climate — snow up north late in the year, heat down south early. <b>Turf</b> is fast (outside runs and deep balls get a lift); <b>grass</b> gets sloppy in rain and snow; <b>thin air</b> carries kicks and wears visitors down. The Iron-Bowl is at a neutral site. In franchise mode you can renovate and rename your building.</p>
-      <h3>🎮 Controls</h3><p>The bar along the bottom: <b>Pause</b>, <b>speed</b> (1x, 2x, skip), <b>Wide</b> camera, <b>Tactics</b> (counter chart and their tendencies), <b>Stats</b> (box score) and <b>Key</b> moments. On a keyboard: <b>1–9</b> call plays, <b>Space</b> skips an animation, <b>T</b> timeout, <b>S</b> speed, <b>W</b> wide, <b>C</b> tactics, <b>B</b> box score, <b>Esc</b> pause/back. Your phone's back gesture works like the ← button.</p>
+      <h3>🎮 Controls</h3><p>The bar along the bottom: <b>Pause</b>, <b>speed</b> (1x, 2x, skip), <b>Wide</b> camera, <b>Tactics</b> (counter chart and their tendencies), <b>Stats</b> (box score) and <b>Key</b> moments. On a keyboard: <b>1–9</b> call plays, <b>Q</b>/<b>E</b> or <b>← →</b> switch formation, <b>Space</b> skips an animation, <b>T</b> timeout, <b>S</b> speed, <b>W</b> wide, <b>C</b> tactics, <b>B</b> box score, <b>Esc</b> pause/back. Your phone's back gesture works like the ← button.</p>
       <h3>📋 Halftime</h3><p>Pick one adjustment — double their top target, stack the box, protect the QB, up-tempo and more. They make one too.</p>
       <h3>🎯 Key moments</h3><p>Short on time? Choose <b>Key moments</b> before kickoff: routine snaps sim, and you take over in the red zone, on 4th down, in the two-minute drill and crunch time. ☰ also lets you sim a drive or skip to halftime.</p>
       <h3>🧩 Storylines</h3><p>Rivalries heat up when you lose to a team. Coaches who were fired or poached get revenge games. Stars facing the team that cut them play angry. Coaches who worked together know each other's playbooks. QB-receiver duos click after two seasons.</p>

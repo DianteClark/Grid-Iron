@@ -2,7 +2,7 @@
 // play-calling skill can carry the worse team.   node tools/balance.js   (env: N, GAPS, BAL='{"talent":..}')
 global.window = {}; global.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 const root = __dirname + '/../js/';
-['data', 'stadium', 'sim', 'cards', 'rating'].forEach((f) => require(root + f + '.js'));
+['data', 'icons', 'playbook', 'stadium', 'sim', 'cards', 'rating'].forEach((f) => require(root + f + '.js'));
 const GI = window.GI;
 if (process.env.BAL) Object.assign(GI.BAL, JSON.parse(process.env.BAL));
 const N = +(process.env.N || 200);

@@ -202,16 +202,16 @@
     if (o.starMeter) ['home', 'away'].forEach((s) => teams[s].stars.forEach((st) => { if (o.starMeter[st.id] != null) st.meter = o.starMeter[st.id]; }));
     const morale = {};
     ['home', 'away'].forEach((s) => (morale[s] = clamp(55 + (teams[s].coaches.hc.rating - 70) / 2 + ri(-5, 5) + ((o.morale && o.morale[s]) || 0), 20, 95)));
-    const potwPick = () => ({ off: GI.OFF_PLAYS[ri(0, 4)].id, def: GI.DEF_PLAYS[ri(0, 5)].id });
+    const potwPick = () => ({ off: GI.OFF_PLAYS[ri(0, GI.OFF_PLAYS.length - 1)].id, def: GI.DEF_PLAYS[ri(0, GI.DEF_PLAYS.length - 1)].id });
     const firstRecv = R() < 0.5 ? 'home' : 'away';
     const G = {
       v: 1, user: o.userHome ? 'home' : 'away', teams, score: { home: 0, away: 0 },
       q: 1, qLen: o.qMin * 60, clock: o.qMin * 60, poss: firstRecv, ballOn: 25, down: 1, toGo: 10,
       phase: 'kickoff', kickTeam: other(firstRecv), freeKick: false, firstRecv,
-      weather, crowd, diff: o.diff || 'pro', potw: o.potw || { off: 'short', def: 'zone' },
+      weather, crowd, diff: o.diff || 'pro', potw: { off: GI.toPlay((o.potw || {}).off, 'off'), def: GI.toPlay((o.potw || {}).def, 'def') },
       morale, stats: { home: mkStats(), away: mkStats() }, log: [], hist: { off: [], def: [] },
       pending: null, flash: null, over: false, ot: false, playNo: 0,
-      potwLeft: { off: 3, def: 3 }, cpuPotw: o.cpuPotw || potwPick(), cpuPotwLeft: { off: 3, def: 3 },
+      potwLeft: { off: 3, def: 3 }, cpuPotw: o.cpuPotw ? { off: GI.toPlay(o.cpuPotw.off, 'off'), def: GI.toPlay(o.cpuPotw.def, 'def') } : potwPick(), cpuPotwLeft: { off: 3, def: 3 },
       playoff: !!o.playoff, intel: o.intel || null, film: !!o.film, label: o.label || null, benchUsed,
       // v0.5: clock management, momentum, adjustments, per-star stats, scouting the CPU
       to: { home: 3, away: 3 }, runoff: 0, twoMin: {}, hurry: { home: false, away: false }, mom: 0, adj: { home: null, away: null },
@@ -513,8 +513,9 @@
   function cpuOffCall(G) {
     const w = cpuOffWeights(G, true);
     // a CPU star sitting on fire nudges it toward a play where he can go off
-    const hot = G.teams[G.poss].stars.filter((s) => !s.injured && s.meter >= 100 && GI.SHOWME[s.pos].o);
-    hot.forEach((s) => GI.SHOWME[s.pos].o.forEach((c) => { if (w[c] != null) w[c] *= 1.35; }));
+    const hot = G.teams[G.poss].stars.filter((s) => !s.injured && s.meter >= 100 && GI.SHOWME[s.pos].o && GI.hasMeter(G.teams[G.poss], s));
+    hot.forEach((s) => { for (const c in w) if (GI.SHOWME[s.pos].o.includes(GI.baseOf(c))) w[c] *= 1.35; });
+    if (G.poss !== G.user && G.cpuPotw && w[G.cpuPotw.off] != null) w[G.cpuPotw.off] *= 2.2; // their go-to play
     return wpick(w);
   }
   function cpuShouldKneel(G, side) {
@@ -525,7 +526,18 @@
     return G.clock <= 38 * snapsLeft - oppTO * 34 + 4 && G.clock <= 160;
   }
   GI.cpuShouldKneel = cpuShouldKneel;
+  // v1: the coordinator thinks in families (run inside, run outside, short, long, trick), then picks a play
   function cpuOffWeights(G, adapt) {
+    const t = G.teams[G.poss];
+    const bw = cpuOffBase(G);
+    const w = GI.spreadOff ? GI.spreadOff(bw, t.coaches.oc.style) : bw;
+    if (adapt) {
+      const k = ADAPT[G.diff];
+      G.hist.def.slice(0, 6).forEach((d) => { for (const o in w) if (GI.matrixOf(o, d) === 2) w[o] += k / 2; });
+    }
+    return w;
+  }
+  function cpuOffBase(G) {
     const t = G.teams[G.poss];
     const w = { in_run: 22, out_run: 18, short: 28, long: 16, trick: 4 };
     const st = t.coaches.oc.style;
@@ -541,15 +553,13 @@
     if (G.ballOn >= 85) { w.long *= 0.5; w.short *= 1.2; }
     const idn = t.identity && GI.IDENTITIES[t.identity];
     if (idn) for (const c in idn.calls) if (w[c] != null) w[c] *= 1.25;
-    if (adapt) {
-      const k = ADAPT[G.diff];
-      G.hist.def.slice(0, 6).forEach((d) => {
-        for (const o in GI.MATRIX) if (GI.MATRIX[o][d] === 2) w[o] += k;
-      });
-    }
     return w;
   }
-  function cpuDefCall(G) { return wpick(cpuDefWeights(G, true)); }
+  function cpuDefCall(G) {
+    const w = cpuDefWeights(G, true);
+    if (G.poss === G.user && G.cpuPotw && w[G.cpuPotw.def] != null) w[G.cpuPotw.def] *= 2.2;
+    return wpick(w);
+  }
   // tendencies the user can scout: base situational weights (no adaptation, no randomness)
   GI.tendency = function (G) {
     const userOff = G.poss === G.user;
@@ -558,6 +568,17 @@
     return Object.keys(w).map((k) => ({ id: k, p: Math.round((w[k] / tot) * 100) })).sort((a, b) => b.p - a.p);
   };
   function cpuDefWeights(G, adapt) {
+    const t = G.teams[other(G.poss)];
+    const bw = cpuDefBase(G);
+    const w = GI.spreadDef ? GI.spreadDef(bw, t.coaches.dc.style) : bw;
+    if (adapt) {
+      const k = ADAPT[G.diff];
+      G.hist.off.slice(0, 6).forEach((o) => { const c = GI.counterOf(o); if (w[c] != null) w[c] += k; });
+      if (G.film && G.diff !== 'rookie') { const c = GI.counterOf(G.potw.off); if (w[c] != null) w[c] += 12; } // they studied your Play of the Week
+    }
+    return w;
+  }
+  function cpuDefBase(G) {
     const t = G.teams[other(G.poss)];
     const w = { man: 18, zone: 22, deep: 14, press: 14, blitz_in: 14, blitz_out: 14 };
     if (G.ballOn >= 85) { w.deep *= 0.5; w.press *= 1.3; w.blitz_in *= 1.2; }
@@ -569,18 +590,13 @@
     if (st === 'press') { w.press *= 1.7; w.man *= 1.5; }
     if (G.toGo >= 8) { w.deep *= 1.8; w.zone *= 1.4; }
     if (G.toGo <= 2) { w.blitz_in *= 1.8; w.blitz_out *= 1.4; w.deep *= 0.4; }
-    if (adapt) {
-      const k = ADAPT[G.diff];
-      G.hist.off.slice(0, 6).forEach((o) => { w[GI.counterOf(o)] += k; });
-      if (G.film && G.diff !== 'rookie') w[GI.counterOf(G.potw.off)] += 12; // they studied your Play of the Week
-    }
     return w;
   }
   function armCpu(G, side, kind, call) {
     G.teams[side].stars.forEach((s) => {
       if (s.injured || s.armed || s.meter < 100) return;
       const sm = GI.SHOWME[s.pos];
-      if (kind === 'o' && sm.o && call && sm.o.includes(call)) s.armed = true;
+      if (kind === 'o' && sm.o && call && sm.o.includes(GI.baseOf(call))) s.armed = true;
       else if (kind === 'o' && !call && s.pos === 'KP') s.armed = true;
       else if (kind === 'd' && sm.d && R() < 0.55) s.armed = true;
     });
@@ -637,7 +653,7 @@
       if (s.injured || s.armed || s.meter < 100) return;
       const sm = GI.SHOWME[s.pos];
       let go = false;
-      if (act.type === 'play' && act.call && userOff && sm.o && sm.o.includes(act.call)) go = true;
+      if (act.type === 'play' && act.call && userOff && sm.o && sm.o.includes(GI.baseOf(act.call))) go = true;
       if (act.type === 'play' && act.call && !userOff && sm.d) go = true;
       if ((act.special === 'fg' || act.special === 'punt' || act.type === 'pat') && s.pos === 'KP') go = true;
       let kick = false;
@@ -811,17 +827,19 @@
   }
 
   // ---------- scrimmage ----------
-  function doScrimmage(G, off, def) {
+  function doScrimmage(G, call, dcall) {
+    const off = GI.baseOf(call), def = GI.baseOf(dcall);
+    const play = GI.playOf ? GI.playOf(call) : null;
     const P = G.poss, D = other(P);
     const ot = G.teams[P], dt = G.teams[D];
     const ro = GI.ratings(ot), rd = GI.ratings(dt);
     const W = GI.WEATHER[G.weather];
     const isRun = off === 'in_run' || off === 'out_run';
     const isPass = off === 'short' || off === 'long';
-    const res = { off, def, side: P, ...frame(G, P), start: G.ballOn, down: G.down, toGo: G.toGo };
-    const matrix = GI.MATRIX[off][def];
+    const res = { off, def, call, dcall, form: play && play.form, side: P, ...frame(G, P), start: G.ballOn, down: G.down, toGo: G.toGo };
+    const matrix = GI.matrixOf ? GI.matrixOf(call, dcall) : GI.MATRIX[off][def];
     res.matrix = matrix;
-    res.reason = GI.REASON[off + '|' + def] || null;
+    res.reason = GI.REASON[call + '|' + dcall] || (Math.abs(matrix) === 2 ? null : GI.REASON[off + '|' + def]) || null;
     const adjP = G.adj[P], adjD = G.adj[D];
     const lateHalf = (G.q === 2 && G.clock <= 120) || (G.q >= 4 && G.clock <= 300);
 
@@ -851,14 +869,14 @@
     a += (BAL.knee ? tg / (1 + Math.abs(tg) / BAL.knee) : tg) * BAL.talent;
     res.potw = false;
     // Play of the Week: only a few reps per game
-    if (P === G.user && off === G.potw.off && G.potwLeft.off > 0) { a += BAL.potw; G.potwLeft.off--; res.potw = 'off'; }
-    if (D === G.user && def === G.potw.def && G.potwLeft.def > 0) { a -= BAL.potw; G.potwLeft.def--; res.potw = 'def'; }
-    if (P !== G.user && off === G.cpuPotw.off && G.cpuPotwLeft.off > 0) { a += BAL.potw; G.cpuPotwLeft.off--; res.cpuPotw = 'off'; }
-    if (D !== G.user && def === G.cpuPotw.def && G.cpuPotwLeft.def > 0) { a -= BAL.potw; G.cpuPotwLeft.def--; res.cpuPotw = 'def'; }
+    if (P === G.user && call === G.potw.off && G.potwLeft.off > 0) { a += BAL.potw; G.potwLeft.off--; res.potw = 'off'; }
+    if (D === G.user && dcall === G.potw.def && G.potwLeft.def > 0) { a -= BAL.potw; G.potwLeft.def--; res.potw = 'def'; }
+    if (P !== G.user && call === G.cpuPotw.off && G.cpuPotwLeft.off > 0) { a += BAL.potw; G.cpuPotwLeft.off--; res.cpuPotw = 'off'; }
+    if (D !== G.user && dcall === G.cpuPotw.def && G.cpuPotwLeft.def > 0) { a -= BAL.potw; G.cpuPotwLeft.def--; res.cpuPotw = 'def'; }
     // predictable: same call 3+ snaps in a row gets read by the defense / offense
     const runOf = (h, c) => { let n = 0; for (const x of h) { if (x === c) n++; else break; } return n; };
-    if (P === G.user) { const n = runOf(G.hist.off, off); if (n >= 3) { a -= (n >= 4 ? 0.9 : 0.5) * BAL.call; res.predictable = true; } }
-    if (D === G.user) { const n = runOf(G.hist.def, def); if (n >= 3) { a += (n >= 4 ? 0.9 : 0.5) * BAL.call; res.predictable = true; } }
+    if (P === G.user) { const n = runOf(G.hist.off, call); if (n >= 3) { a -= (n >= 4 ? 0.9 : 0.5) * BAL.call; res.predictable = true; } }
+    if (D === G.user) { const n = runOf(G.hist.def, dcall); if (n >= 3) { a += (n >= 4 ? 0.9 : 0.5) * BAL.call; res.predictable = true; } }
     // momentum: whoever has it plays a little faster
     a += (momFor(G, P) / 100) * 0.18;
     // situational football: down, distance and field position
@@ -1179,7 +1197,7 @@
       res.banner = { title: 'STAR CLASH!', sub: `${c.o} vs ${c.d} — ${c.winner} wins it`, tone: c.winSide === G.user ? 'good' : 'bad', star: true, clash: true, after: res.crazy ? res.crazy.title.toUpperCase() + (res.td ? ' — TD!' : '!') : null };
       txt = `⚔️ STAR CLASH: ${c.o} vs ${c.d}, ${c.winner} wins! ` + txt.replace(/^★ [^!]*! /, '');
     }
-    res.text = `${offName}: ${GI.playName(off)} vs ${GI.playName(def)} — ${txt}`;
+    res.text = `${offName}: ${GI.playName(call)} vs ${GI.playName(dcall)} — ${txt}`;
     // clock: the play runs now; the time until the next snap is held as "runoff"
     tick(G, playTime, P);
     if (stop || G.twoMinStop) G.runoff = 0;
@@ -1509,7 +1527,7 @@
   };
   GI.simGame = function (homeIdx, awayIdx, opts) {
     const o = Object.assign({ qMin: 8, diff: 'pro' }, opts || {});
-    const G = GI.newGame(Object.assign({}, o, { user: homeIdx, opp: awayIdx, userHome: true, potw: { off: GI.OFF_PLAYS[ri(0, 4)].id, def: GI.DEF_PLAYS[ri(0, 5)].id } }));
+    const G = GI.newGame(Object.assign({}, o, { user: homeIdx, opp: awayIdx, userHome: true, potw: { off: GI.OFF_PLAYS[ri(0, GI.OFF_PLAYS.length - 1)].id, def: GI.DEF_PLAYS[ri(0, GI.DEF_PLAYS.length - 1)].id } }));
     G.diff = 'sim';
     GI.finishAuto(G);
     return G;

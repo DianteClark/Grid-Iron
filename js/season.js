@@ -674,7 +674,7 @@
     const effExtra = {};
     if (isV1(S) && S.practice && S.practice.focus === 'film') effExtra[userSide] = [{ label: 'Film study', v: 1, scope: 'all' }];
     return {
-      effExtra,
+      effExtra, cpuPotw: isV1(S) && GI.FORMATIONS ? goTo(S, c.opp) : null,
       venue, when, neutral: !!c.ironBowl,
       user: S.user, opp: c.opp, userHome: c.home, qMin: S.qMin, diff: S.diff, teamData,
       injured: S_.injuredIds(S).filter((id) => !hurt.includes(id)), morale, weather: m.weather || null, crowdLevel,
@@ -1105,6 +1105,7 @@
     GI.league.weekly(S, p);
     const nx = nextUserGame(S);
     p.next = nx;
+    if (nx && isV1(S) && GI.FORMATIONS) p.sections.push(scoutReport(S, nx));
     if (nx) p.event = makeEvent(S, nx);
     else if (R() < 0.5) p.event = flavorEvent(S);
     return p;
@@ -1115,6 +1116,32 @@
       return { opp: g.h === S.user ? g.a : g.h, home: g.h === S.user, label: `Week ${S.week + 2}`, early: S.week + 1 < S.weeks / 2 };
     }
     return null;
+  }
+  // every team has a go-to play on each side for the season: what its coordinators trust most
+  function goTo(S, idx) {
+    S.goTo = S.goTo || {};
+    const cur = S.goTo[idx];
+    if (cur && cur.year === S.year) return cur;
+    const c = S.rosters[idx].coaches;
+    const off = wpick(GI.spreadOff({ in_run: 22, out_run: 18, short: 28, long: 16, trick: 6 }, c.oc.style));
+    const def = wpick(GI.spreadDef({ man: 18, zone: 22, deep: 14, press: 14, blitz_in: 14, blitz_out: 14 }, c.dc.style));
+    S.goTo[idx] = { year: S.year, off, def };
+    return S.goTo[idx];
+  }
+  S_.goTo = goTo;
+  // the weekly scouting report on the next opponent; sometimes the go-to plays leak
+  function scoutReport(S, nx) {
+    const op = T(nx.opp), c = S.rosters[nx.opp].coaches, g = goTo(S, nx.opp);
+    const form = GI.FORMATIONS.find((f) => f.id === (GI.playOf(g.off) || {}).form);
+    const front = GI.FRONTS.find((f) => f.id === (GI.playOf(g.def) || {}).front);
+    const items = [`${op.abbr} OC ${c.oc.name.split(' ').pop()} (${GI.OC_STYLES[c.oc.style] || 'balanced'}) lives in ${form ? form.name : 'every formation'}. DC ${c.dc.name.split(' ').pop()} loves his ${front ? front.name : 'base'} package.`];
+    let chance = 0.35 + (S.practice && S.practice.focus === 'film' ? 0.25 : 0) + (S.up ? (S.up.scouts || 0) * 0.04 : 0);
+    if (S.mods.intel || R() < chance) {
+      S.mods.intel = true;
+      items.push(`LEAKED: their go-to play is <b>${GI.playName(g.off)}</b>. It dies against <b>${GI.playName(GI.counterOf(g.off))}</b>.`);
+      items.push(`On defense they trust <b>${GI.playName(g.def)}</b>. ${GI.playName(GI.OFF_PLAYS.find((p) => p.counter === g.def).id)} walks right into it — call something else.`);
+    } else items.push('Their go-to plays stayed in the building this week. Watch their tendencies in the play sheet.');
+    return { title: `Scouting Report: ${op.city} ${op.name}`, items };
   }
   function makeEvent(S, nx) {
     const ut = T(S.user), op = T(nx.opp);
