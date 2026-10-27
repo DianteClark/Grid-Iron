@@ -213,7 +213,7 @@
         const v = p[k] || 0, cur = S.book.game[k];
         if (v && (!cur || v > cur.v)) {
           S.book.game[k] = { v, name: p.name, team: p.team, year: S.year, id: p.id, pos: p.pos };
-          if (cur && cur.v >= L.REC_MIN.game[k]) (S._recs = S._recs || []).push({ scope: 'game', key: k, v, name: p.name, team: p.team });
+          if (cur && cur.v >= L.REC_MIN.game[k]) { const rc = { scope: 'game', key: k, v, name: p.name, team: p.team, prev: cur.v }; (S._recs = S._recs || []).push(rc); if (GI.share) GI.share.fromRecord(S, rc); }
         }
       });
     });
@@ -510,7 +510,7 @@
     Object.values(S.sstats).forEach((r) => {
       L.RECKEYS.forEach((k) => {
         const v = r[k] || 0, cur = S.book.season[k];
-        if (v && (!cur || v > cur.v)) { S.book.season[k] = { v, name: r.name, team: r.team, year: S.year, id: r.id, pos: r.pos }; if (cur && cur.v >= L.REC_MIN.season[k]) out.push({ scope: 'season', key: k, v, name: r.name, team: r.team }); }
+        if (v && (!cur || v > cur.v)) { S.book.season[k] = { v, name: r.name, team: r.team, year: S.year, id: r.id, pos: r.pos }; if (cur && cur.v >= L.REC_MIN.season[k]) { const rc = { scope: 'season', key: k, v, name: r.name, team: r.team, prev: cur.v }; out.push(rc); if (GI.share) GI.share.fromRecord(S, rc); } }
       });
       const hit = idx[r.id];
       if (!hit) return;
@@ -522,7 +522,7 @@
       const c = s.career; if (!c) return;
       L.RECKEYS.forEach((k) => {
         const v = c[k] || 0, cur = S.book.career[k];
-        if (v && (!cur || v > cur.v)) { S.book.career[k] = { v, name: s.name, team, year: S.year, id: s.id, pos: s.pos }; if (cur && cur.v >= L.REC_MIN.career[k] && cur.id !== s.id) out.push({ scope: 'career', key: k, v, name: s.name, team }); }
+        if (v && (!cur || v > cur.v)) { S.book.career[k] = { v, name: s.name, team, year: S.year, id: s.id, pos: s.pos }; if (cur && cur.v >= L.REC_MIN.career[k] && cur.id !== s.id) { const rc = { scope: 'career', key: k, v, name: s.name, team, prev: cur.v }; out.push(rc); if (GI.share) GI.share.fromRecord(S, rc); } }
       });
     });
     out.filter((x) => x.team === S.user).forEach(() => lp(6, 'Record book'));

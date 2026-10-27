@@ -19,7 +19,7 @@
   }
   function renderLegacy() {
     const D = Lg.get();
-    const tabs = [['hall', '🏆 Hall'], ['album', '📒 Album'], ['store', '🛍️ Store']];
+    const tabs = [['hall', '🏆 Hall'], ['cards', 'Share Cards'], ['store', '🛍️ Store']];
     let body = '';
     if (lgTab === 'hall') {
       let t = [];
@@ -27,7 +27,9 @@
       body = `<div class="sticker panel lpcard"><div><span class="label">Legacy Points</span><b>${D.lp}</b><small>${D.earned} earned all-time</small></div><button class="btn gold small" id="toStore">Spend them ▶</button></div>
         <div class="sticker panel"><h3>🏆 Trophy shelf</h3>${t.length ? `<div class="trophies">${t.map((x) => `<div class="troph">${helmet(T(x.team), 'sm')}<span><b>${x.kind}</b><small>Year ${x.year} · ${T(x.team).name} · ${x.rec}</small></span><span class="cup">🏆</span></div>`).join('')}</div>` : '<p class="muted">No hardware yet. Win the Iron-Bowl to fill this shelf.</p>'}</div>
         <div class="sticker panel"><h3>🏛️ All-time Hall of Fame</h3>${D.hof.length ? D.hof.slice(0, 40).map((h) => `<div class="hofcard">${helmet(T(h.team), 'sm')}<div><b>${esc(h.name)}</b><small>${GI.POS[h.pos] ? GI.POS[h.pos].label : ''} · ${esc(h.tname || '')}${h.career ? ' · 🎮 your career' : ''}</small><p>${esc(h.line || '')}${h.rings ? ` · 💍×${h.rings}` : ''}</p></div></div>`).join('') : '<p class="muted">Legends get inducted when they retire — in your franchises and your careers.</p>'}</div>
-        <div class="sticker panel"><h3>Recent Legacy Points</h3>${D.log.length ? `<ul class="lplog">${D.log.slice(0, 15).map((l) => `<li><b>+${l.n}</b> ${esc(l.why)}</li>`).join('')}</ul>` : '<p class="muted">Win games, hit owner goals, collect shiny stickers and win awards to earn points.</p>'}</div>`;
+        <div class="sticker panel"><h3>Recent Legacy Points</h3>${D.log.length ? `<ul class="lplog">${D.log.slice(0, 15).map((l) => `<li><b>+${l.n}</b> ${esc(l.why)}</li>`).join('')}</ul>` : '<p class="muted">Win games, hit owner goals and win awards to earn points.</p>'}</div>`;
+    } else if (lgTab === 'cards') {
+      body = U.cardsHTML();
     } else if (lgTab === 'album') {
       const st = Lg.albumStats();
       const all = Object.values(D.album);
@@ -64,7 +66,7 @@
           const own = it.special ? kitTeam != null && Lg.heritageOpen(kitTeam) : D.owned[storeCat].includes(id);
           let act;
           if (eq) act = '<span class="pill green">Equipped</span>';
-          else if (it.special) act = kitTeam == null ? '<small class="muted">Pick a team above</small>' : own ? `<button class="btn ghost small" data-eq="${id}">Equip</button>` : `<small class="muted">Finish the ${esc(T(kitTeam).name)} album page</small>`;
+          else if (it.special) act = kitTeam == null ? '<small class="muted">Pick a team above</small>' : own ? `<button class="btn ghost small" data-eq="${id}">Equip</button>` : `<small class="muted">Play more games with or against the ${esc(T(kitTeam).name)}</small>`;
           else act = own ? `<button class="btn ghost small" data-eq="${id}">Equip</button>` : `<button class="btn ${D.lp >= it.cost ? 'gold' : 'ghost'} small" data-buy="${id}" ${D.lp >= it.cost ? '' : 'disabled'}>🏅 ${it.cost}</button>`;
           return `<div class="sticker sitem ${eq ? 'eq' : ''}">${preview(storeCat, id)}<b>${it.name}</b><small>${it.desc}</small>${act}</div>`; }).join('')}</div>`;
     }
@@ -83,6 +85,7 @@
       sfx('td'); toast(`Unlocked: ${GI.COSMETICS[storeCat][b.dataset.buy].name}!`); refreshField(); renderLegacy();
     }));
     $$('#legacyBody [data-eq]').forEach((b) => (b.onclick = () => { Lg.equip(storeCat, b.dataset.eq, storeCat === 'jersey' ? kitTeam : null); sfx('select'); refreshField(); renderLegacy(); }));
+    if (lgTab === 'cards') U.bindCards($('#legacyBody'));
     const kt = $('#kitTeam'); if (kt) kt.onchange = () => { kitTeam = kt.value === '' ? null : +kt.value; renderLegacy(); };
   }
   function refreshField() {

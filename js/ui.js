@@ -101,18 +101,17 @@
     const dur = toastQ.length ? Math.min(ms || 2200, 1500) : ms || 2200;
     setTimeout(() => { t.remove(); toastOn = false; const n = toastQ.shift(); if (n) toast(n[0], n[1]); }, dur);
   }
-  // Legacy Points & new stickers: a little celebration when you get back to a menu
+  // Legacy Points: a little celebration when you get back to a menu
   let rewardBusy = false;
   function flushRewards() {
     if (rewardBusy || !GI.legacy) return;
     const lp = GI.legacy.takePending(), fresh = GI.legacy.takeFresh();
     const total = lp.reduce((t, x) => t + x.n, 0);
-    if (!total && !fresh.length) return;
+    if (!total) return;
     rewardBusy = true;
     const shiny = fresh.filter((f) => (f.shiny || []).length).length;
     const parts = [];
     if (total) parts.push(`+${total} Legacy Points`);
-    if (fresh.length) parts.push(`📒 ${fresh.length} new sticker${fresh.length > 1 ? 's' : ''}${shiny ? ` (${shiny} shiny ✨)` : ''}`);
     toast(parts.join(' · '), 2600);
     if (total) sfx('star');
     setTimeout(() => (rewardBusy = false), 2600);
@@ -319,7 +318,8 @@
   $('#btnHelp').onclick = () => showHelp();
   $('#btnSettings').onclick = () => showSettings();
   $('#btnTrophies').onclick = () => GI.UI.openLegacy('hall');
-  $('#btnAlbum').onclick = () => GI.UI.openLegacy('album');
+  $('#btnAlbum').onclick = () => GI.UI.openLegacy('cards');
+  $('#btnFriends').onclick = () => GI.UI.openFriends();
   $('#btnStore').onclick = () => GI.UI.openLegacy('store');
 
   // ---------- team pick ----------
@@ -514,7 +514,7 @@
     renderPregame();
     show('pregame');
   }
-  $('#pgBack').onclick = () => { if (pgSeason) { GI.UI.renderHub(); show('hub'); } else show('pick'); };
+  $('#pgBack').onclick = () => { if (pgSeason) { GI.UI.renderHub(); show('hub'); } else if (G && G.friend) GI.UI.openFriends(); else show('pick'); };
   function renderPregame() {
     const ut = G.teams[G.user], ot = G.teams[other(G.user)];
     const ur = GI.ratings(ut), orr = GI.ratings(ot);
@@ -1254,7 +1254,7 @@
     if (d > 0 && !G.dailyGiven) { G.dailyGiven = true; GI.legacy.dailyWin(); }
     // quick-game record with each team
     let qline = '';
-    if (!season && !G.recCounted) {
+    if (!season && !G.friend && !G.recCounted) {
       G.recCounted = true;
       const qr = Object.assign({}, GI.prefs.get().qrec || {});
       const k = String(ut.idx), r = Object.assign({ w: 0, l: 0, t: 0, st: 0, best: 0 }, qr[k]);
@@ -1275,8 +1275,9 @@
       ${recs.length ? `<div class="sticker panel"><h3>📜 History made</h3><ul class="slines">${recs.map((r) => `<li><span class="pp-pos">${r.th ? '🏅' : '📜'}</span><b>${GI.shortName(r.name)}</b><span>${r.th ? `${r.th.toLocaleString()} career ${GI.STAT_NAME[r.key]}` : `record ${r.v} ${GI.STAT_NAME[r.key]}`}</span></li>`).join('')}</ul></div>` : ''}
       <div class="sticker panel"><h3>${ut.abbr} star lines</h3>${starLines(u)}</div>
       <div class="sticker panel">${statsTable()}</div>
-      <div style="display:grid;gap:12px">${season ? '<button class="btn gold block" id="fGazette">📰 Read the Gazette ▶</button>' : '<div class="menu-duo"><button class="btn gold" id="fRematch">Rematch</button><button class="btn" id="fSwap">Swap sides</button></div><button class="btn block" id="fNew">New Matchup</button><div class="menu-duo"><button class="btn ghost" id="fShare">Share result</button><button class="btn ghost" id="fMenu">Main Menu</button></div>'}</div>`;
+      <div style="display:grid;gap:12px">${season ? '<button class="btn gold block" id="fGazette">📰 Read the Gazette ▶</button>' : G.friend ? '<div id="friendFinal"></div><div class="menu-duo"><button class="btn" id="fFriends">Friends</button><button class="btn ghost" id="fMenu">Main Menu</button></div>' : '<div class="menu-duo"><button class="btn gold" id="fRematch">Rematch</button><button class="btn" id="fSwap">Swap sides</button></div><button class="btn block" id="fNew">New Matchup</button><div class="menu-duo"><button class="btn ghost" id="fShare">Share result</button><button class="btn ghost" id="fMenu">Main Menu</button></div>'}</div>`;
     show('final');
+    if (GI.UI.shareToasts) setTimeout(GI.UI.shareToasts, 600);
     if (season) {
       $('#fGazette').onclick = () => {
         if (G.seasonDone) { GI.UI.renderHub(); show('hub'); return; }
@@ -1292,6 +1293,12 @@
       return;
     }
     GI.clearSave();
+    if (G.friend) {
+      $('#fFriends').onclick = () => GI.UI.openFriends();
+      $('#fMenu').onclick = () => { refreshTitle(); show('title'); };
+      GI.UI.friendFinal(G);
+      return;
+    }
     const hi = G.teams[u].idx, oi = G.teams[o].idx;
     $('#fRematch').onclick = () => { setup.user = hi; startPregame(quickOpts(hi, oi)); };
     $('#fSwap').onclick = () => { setup.user = oi; startPregame(quickOpts(oi, hi)); };
@@ -1486,7 +1493,7 @@
       <h3>🎯 Key moments</h3><p>Short on time? Choose <b>Key moments</b> before kickoff: routine snaps sim, and you take over in the red zone, on 4th down, in the two-minute drill and crunch time. ☰ also lets you sim a drive or skip to halftime.</p>
       <h3>🧩 Storylines</h3><p>Rivalries heat up when you lose to a team. Coaches who were fired or poached get revenge games. Stars facing the team that cut them play angry. Coaches who worked together know each other's playbooks. QB-receiver duos click after two seasons.</p>
       <h3>📰 The Gazette</h3><p>After every week: headline, power rankings, injuries, league news and an <b>EXTRA!</b> story — leaks, holdouts, hot seats and more. Big games end with a press conference.</p>
-      <h3>🏛️ Legacy</h3><p>Win to earn <b>Legacy Points</b> and spend them in the Store on jerseys (set per team), home fields, touchdown celebrations, game balls and scorebug themes. Your field skin shows at home games in your own stadium. Finish a team's album page to unlock its Heritage jersey. The first win of each day pays +5. Every star you play with or against goes in your <b>sticker album</b> — shiny for MVPs, champions and Hall of Famers.</p>
+      <h3>🤝 Friends</h3><p>Send your franchise team's <b>team code</b> to a friend and add theirs in <b>Friends & Challenges</b>. Play their team, then send them the <b>result code</b>: it lands in their record, their rivalry heat and their Gazette. Series records and rivalries build up over time.</p><h3>🏛️ Legacy & share cards</h3><p>Win to earn <b>Legacy Points</b> for jerseys, fields, celebrations, balls and scorebugs in the Store. Records, 1,000-yard seasons, the longest pass and run in franchise history, new Star Players and titles become <b>share cards</b> you can post.</p>
       </div>`, (s) => (s.querySelector('#mx').onclick = closeModal));
   }
 

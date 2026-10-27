@@ -45,13 +45,14 @@
       <p class="muted" style="font-size:13px;margin:8px 0 10px">${D.PRACTICE[P.focus].desc}. Extra reps go to up to ${D.REPS} players — young players with room to grow get the most out of them.</p>
       <div class="reps">${slots}</div></div>`;
   }
+  const breakOdds = (c) => Math.round(Math.min(0.6, (c.spark || 0.05) + ((S.up.gym || 1) - 1) * 0.02) * 100);
   function pickReps() {
     const P = S.practice;
     const ut = T(S.user), tc = Object.assign({}, ut, GI.legacy.jersey(ut));
     const list = SN.allStars(S, S.user).filter((c) => !(S.inj[c.id] > 0)).sort((a, b) => (b.pot - b.rating) - (a.pot - a.rating) || a.age - b.age);
     const draw = (m) => {
-      m.innerHTML = `<div class="row between"><h2>Extra reps</h2>${closeBtn}</div><p class="muted" style="margin-top:-4px">Pick up to ${GI.dev.REPS}. Sorted by room to grow.</p>
-        <div class="cstrip picks">${list.map((c) => `<div class="pickwrap ${P.reps.includes(c.id) ? 'on' : ''}" data-rep="${c.id}">${U.cardHTML(c, tc, { small: true })}<span class="room">+${Math.max(0, c.pot - c.rating)} room</span></div>`).join('')}</div>
+      m.innerHTML = `<div class="row between"><h2>Extra reps</h2>${closeBtn}</div><p class="muted" style="margin-top:-4px">Pick up to ${GI.dev.REPS}. Reps add XP, and for players 26 and under they build <b>breakthrough odds</b> (⚡): a breakthrough jumps his rating and raises his ceiling. Sorted by room to grow.</p>
+        <div class="cstrip picks">${list.map((c) => `<div class="pickwrap ${P.reps.includes(c.id) ? 'on' : ''}" data-rep="${c.id}">${U.cardHTML(c, tc, { small: true })}<span class="room">+${Math.max(0, c.pot - c.rating)} room${GI.dev.canBreak(c) ? ` · ⚡${breakOdds(c)}%` : ''}</span></div>`).join('')}</div>
         <button class="btn green block" id="repDone" style="margin-top:12px">Done</button>`;
       m.querySelector('#mx').onclick = () => { closeModal(); renderHub(); };
       m.querySelector('#repDone').onclick = () => { closeModal(); SN.save(S); renderHub(); };
@@ -164,6 +165,7 @@
         ${div.map((i) => rowTeam(i)).join('')}</div>`;
     $('#hubBack').onclick = () => { U.refreshTitle(); show('title'); };
     if ((S.tierUps || []).length && !$('#modal').classList.contains('on')) setTimeout(tierReveal, 350);
+    if (U.shareToasts) setTimeout(U.shareToasts, 900);
     $('#hubSet').onclick = () => U.showSettings();
     const on = (id, fn) => { const b = $('#' + id); if (b) b.onclick = fn; };
     on('hubPlay', () => startSeasonGame());
@@ -508,6 +510,7 @@
         <p><span class="label">This season</span><br>${ss ? L.statLine(ss) : 'No stats yet'}</p>
         <p><span class="label">Career</span><br>${c.seasons ? L.statLine(c) : 'First season'}</p>
         ${GI.impact && GI.impact.sideOf(s.pos) ? (() => { const r = S.rosters[S.user], t = GI.impact.tierOf(r, s); return t ? `<p class="kicktip ok">${GI.ico('spark')} Impact Card: <b>${GI.impact.MOVE[s.pos]}</b> · ${GI.impact.nameOf(t)} +${GI.impact.pctOf(t)}% on ${GI.impact.FIT_WORD[s.pos]}${GI.impact.isCaptain(r, s) ? ' · Captain' : ''}</p>` : `<p class="muted" style="font-size:12.5px">${GI.impact.MIN_RATING - s.rating} more overall to earn an Impact Card (or make him a captain).</p>`; })() : ''}
+        ${GI.dev.canBreak(s) && !s.star ? `<p class="muted" style="font-size:12.5px">⚡ Breakthrough odds at spring training: <b>${breakOdds(s)}%</b>${s.invest ? ` · ${s.invest} weeks of extra reps` : ' · extra reps raise them'}${s.breaks ? ` · ${s.breaks} breakthrough${s.breaks > 1 ? 's' : ''} so far` : ''}</p>` : ''}
         ${s.star ? `<p class="kicktip ok">★ Star Player: ${GI.SHOWME[s.pos].name} — ${GI.SHOWME[s.pos].desc}</p>` : `<p class="muted" style="font-size:12.5px">${90 - s.rating} more overall to become a Star Player.</p>`}
       </div></div>
       <button class="btn ghost small block" id="cdRel" style="margin-top:12px">Release</button>`, (m) => {

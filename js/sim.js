@@ -185,7 +185,10 @@
     let crowd = GI.CROWD[ri(0, GI.CROWD.length - 1)];
     if (o.crowdLevel != null) crowd = GI.CROWD.reduce((b, c) => (Math.abs(c.level - o.crowdLevel) < Math.abs(b.level - o.crowdLevel) ? c : b));
     const mk = (idx) => (o.teamData && o.teamData[idx] ? GI.makeTeam(idx, o.teamData[idx]) : GI.buildTeam(idx));
-    const teams = { home: mk(homeIdx), away: mk(awayIdx) };
+    // friend games: either side can come straight from a team code (or your franchise)
+    const mkU = () => (o.userData ? GI.makeTeam(o.user, o.userData) : mk(o.user));
+    const mkO = () => { const t = o.oppData ? GI.makeTeam(o.opp, o.oppData) : mk(o.opp); if (o.oppData && o.oppIdx != null) t.idx = o.oppIdx; return t; };
+    const teams = o.userHome ? { home: mkU(), away: mkO() } : { home: mkO(), away: mkU() };
     const inj = new Set(o.injured || []);
     const benchUsed = [];
     ['home', 'away'].forEach((s) => {
@@ -217,7 +220,7 @@
       morale, stats: { home: mkStats(), away: mkStats() }, log: [], hist: { off: [], def: [] },
       pending: null, flash: null, over: false, ot: false, playNo: 0,
       potwLeft: { off: 3, def: 3 }, cpuPotw: o.cpuPotw ? { off: GI.toPlay(o.cpuPotw.off, 'off'), def: GI.toPlay(o.cpuPotw.def, 'def') } : potwPick(), cpuPotwLeft: { off: 3, def: 3 },
-      playoff: !!o.playoff, intel: o.intel || null, film: !!o.film, label: o.label || null, benchUsed,
+      playoff: !!o.playoff, intel: o.intel || null, film: !!o.film, label: o.label || null, benchUsed, friend: o.friend || null,
       // v0.5: clock management, momentum, adjustments, per-star stats, scouting the CPU
       to: { home: 3, away: 3 }, runoff: 0, twoMin: {}, hurry: { home: false, away: false }, mom: 0, adj: { home: null, away: null },
       ps: {}, cpuLog: [], drive: { plays: 0, side: firstRecv }, rivalry: o.rivalry || null, book: o.book || null, brokeRec: {},
@@ -1194,6 +1197,16 @@
         if (credit(G, P, 'RB', 'car')) { credit(G, P, 'RB', 'ryd', gain); if (res.td) credit(G, P, 'RB', 'rtd'); }
       } else if (res.kind === 'sack' && res.by) credit(G, D, res.by, 'sk');
       if (res.kind === 'incomplete' && res.breakup && res.by) credit(G, D, res.by, 'pd');
+      // longest plays of the game (for the franchise's longest-ever and the share cards)
+      if ((res.kind === 'pass' || res.kind === 'run') && gain > 0) {
+        G.long = G.long || { home: {}, away: {} };
+        const lk = res.kind, cur = G.long[P][lk];
+        if (!cur || gain > cur.yds) {
+          const who = lk === 'pass' ? GI.starAt(G.teams[P], res.target === 'RB' ? 'RB' : res.target) : GI.starAt(G.teams[P], 'RB');
+          const qb = lk === 'pass' ? GI.starAt(G.teams[P], 'QB') : null;
+          G.long[P][lk] = { yds: gain, td: !!res.td, name: who ? who.name : null, pos: who ? who.pos : null, num: who ? who.num : null, qb: qb ? qb.name : null };
+        }
+      }
       if ((res.kind === 'run' || res.kind === 'pass') && !res.td) {
         const tk = res.by && gain <= 2 ? res.by : pickDef(gain > 12 ? ['FS', 'SS', 'CB1', 'CB2'] : ['MLB', 'WLB', 'SLB', 'SS', 'DT1', 'DE1', 'CB1']);
         credit(G, D, tk, 'tkl');

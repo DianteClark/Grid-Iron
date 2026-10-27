@@ -122,6 +122,14 @@
         if (!c || S.inj[c.id] > 0) return;
         const before = c.rating;
         gainXP(c, REP_XP * (c.age <= 25 ? 1.2 : 1));
+        // investment builds "spark": the odds of a breakthrough that raises his ceiling
+        if (canBreak(c)) c.spark = Math.min(SPARK_MAX, (c.spark || 0.04) + SPARK_REP);
+        c.invest = (c.invest || 0) + 1;
+        // now and then the work shows up all at once
+        if (canBreak(c) && R() < (c.spark || 0) * 0.05) {
+          const b0 = c.rating, j = breakthrough(c, 1);
+          if (j) (S._breaks = S._breaks || []).push({ name: c.name, pos: c.pos, jump: c.rating - b0, rating: c.rating });
+        }
         if (c.rating > before) out.push({ name: c.name, pos: c.pos, d: c.rating - before, rating: c.rating });
       });
       if (p.focus === 'recovery') Object.keys(S.inj).forEach((id) => { if (lineup.some((c) => c.id === id) && S.inj[id] > 1) S.inj[id]--; });
@@ -141,12 +149,17 @@
     if (n < 0) return declineOvr(c, -n);
     return 0;
   }
-  // the breakthrough: young players can suddenly arrive
+  // the breakthrough: young players can suddenly arrive. The ones you've invested in arrive further.
+  const SPARK_REP = 0.02, SPARK_MAX = 0.5;
+  const canBreak = (c) => c.age <= 26 || (c.yrsPro || 0) <= 3;
   function breakthrough(c, chance) {
-    if (!(c.age <= 25 || (c.yrsPro || 0) <= 2)) return 0;
+    if (!canBreak(c)) return 0;
     if (R() >= chance) return 0;
     const jump = 4 + Math.floor(R() * 5);
-    c.pot = Math.min(99, Math.max(c.pot || 0, c.rating + jump + 3));
+    const lift = 4 + Math.round(Math.min(SPARK_MAX, c.spark || 0) * 16) + Math.min(6, Math.floor((c.invest || 0) / 8)); // reps raise the new ceiling
+    c.pot = Math.min(99, Math.max(c.pot || 0, c.rating + jump + lift));
+    c.spark = Math.max(0.04, (c.spark || 0) * 0.45);
+    c.breaks = (c.breaks || 0) + 1;
     return growOvr(c, jump);
   }
   // offseason aging (called once per player per year, after the age bump)
@@ -220,5 +233,5 @@
   }
   function fillAll(S) { for (let i = 0; i < 32; i++) fillLineup(S, i); }
 
-  GI.dev = { levelCost, anchorLeague, XP_PER_LEVEL, BENCH_MAX, PRACTICE, REPS, REP_XP, ARCH, archetype, growOvr, declineOvr, gainXP, gameXP, afterGame, practiceWeek, campGrowth, breakthrough, ageDecline, addCard, trimBench, fillLineup, fillAll };
+  GI.dev = { levelCost, anchorLeague, XP_PER_LEVEL, BENCH_MAX, PRACTICE, REPS, REP_XP, ARCH, archetype, growOvr, declineOvr, gainXP, gameXP, afterGame, practiceWeek, campGrowth, breakthrough, canBreak, SPARK_REP, SPARK_MAX, ageDecline, addCard, trimBench, fillLineup, fillAll };
 })();

@@ -61,6 +61,7 @@
       p.unit = pos === 'OL' || pos === 'DL';
       if (p.unit) { p.name = pick(GI.cards.LINE_NAMES[pos]); p.num = null; }
       if (!vet && R() < 0.06) { p.gem = true; p.pot = Math.min(99, p.pot + ri(6, 12)); p.spark = 0.3; } // a hidden gem
+      else if (!vet && R() < 0.09) { p.ceiling = true; p.pot = Math.min(97, Math.max(p.pot, p.rating + ri(20, 28))); p.spark = Math.max(p.spark, 0.12); } // a franchise ceiling: good scouts see the A grade
     }
     p.salary = vet ? askSalary(p) : rookieSalary(p);
     return p;
@@ -103,7 +104,10 @@
   function tierDiff(S, before) {
     S_.allStars(S, S.user).forEach((c) => {
       const was = before[c.id];
-      if (was && c.tier && TIER_ORDER.indexOf(c.tier) > TIER_ORDER.indexOf(was)) (S.tierUps = S.tierUps || []).push({ id: c.id, from: was, to: c.tier });
+      if (was && c.tier && TIER_ORDER.indexOf(c.tier) > TIER_ORDER.indexOf(was)) {
+        (S.tierUps = S.tierUps || []).push({ id: c.id, from: was, to: c.tier });
+        if (c.tier === 'star' && GI.share) GI.share.starBorn(S, c);
+      }
     });
   }
   S_.teamObj = (S, i) => GI.makeTeam(i, S.rosters[i]);
@@ -541,7 +545,7 @@
           if (f === 'conditioning') c.dur = clamp(c.dur + 6, 30, 99);
           GI.dev.campGrowth(c, { gym, bonus });
           const jump = GI.dev.breakthrough(c, (c.spark || 0.05) + (gym - 1) * 0.02 + (mine && intense ? 0.03 : 0));
-          if (jump) { c.spark = 0.02; breaks.push({ team: i, name: c.name, pos: c.pos, jump, rating: c.rating }); }
+          if (jump) breaks.push({ team: i, name: c.name, pos: c.pos, jump, rating: c.rating });
           if (mine) growth.push({ name: c.name, pos: c.pos, d: c.rating - before, rating: c.rating });
         });
         continue;
@@ -758,6 +762,7 @@
       (G.highlights || []).forEach((h) => highlights.push({ text: h, game: g }));
       if (isMine) {
         mine = { g, G };
+        if (isV1(S) && GI.share) GI.share.afterUserGame(S, G);
         G.log.filter((l) => l.type === 'star').forEach((l) => highlights.unshift({ text: l.text, game: g, mine: true }));
         const us = g.h === S.user ? g.hs : g.as, them = g.h === S.user ? g.as : g.hs;
         S.seasonStats.gp++; S.seasonStats.pf += us; S.seasonStats.pa += them;
@@ -876,7 +881,7 @@
       if (winners[0] === S.user) {
         // the Iron-Bowl purse: money for next year's draft
         S.fin.bonus += 15; S.cash += 15; S.records.titles++;
-        if (isV1(S)) { S.ip = (S.ip || 0) + 5; paper.ipTitle = 5; }
+        if (isV1(S)) { S.ip = (S.ip || 0) + 5; paper.ipTitle = 5; if (GI.share) GI.share.champions(S); }
         paper.bonus = 15;
         paper.special = 'champs';
         S.hype = clamp((S.hype || 40) + 15, 0, 100);
@@ -896,6 +901,7 @@
     S.phase = 'offseason';
     // awards night & the record book (before anyone ages or retires)
     const awards = GI.league.computeAwards(S);
+    if (isV1(S) && GI.share) GI.share.seasonEnd(S);
     const recs = GI.league.rollSeason(S);
     paper.awards = S.year;
     // books for the year
@@ -1026,6 +1032,7 @@
     const cost = GI.impact.upgradeCost(r, c);
     if (cost == null || (S.ip || 0) < cost) return false;
     S.ip -= cost; c.imp = (c.imp || 0) + 1;
+    if (c.imp === 4 && GI.share) GI.share.eliteImpact(S, c);
     S_.save(S);
     return c.imp;
   };
@@ -1134,7 +1141,7 @@
     p.division = S_.sorted(S, S_.division(S.user)).map((i) => ({ i, rec: S_.recStr(S.rec[i]) }));
     const notes = [];
     (S._benchNews || []).forEach((b) => { if (b.team === S.user) notes.push(`🪑 Backup ${GI.POS[b.pos].label} ${b.name} stepped in for ${GI.shortName(b.for)} — his contract is now active.`); });
-    (S._breaks || []).forEach((b) => notes.push(`⚡ BREAKTHROUGH: rookie ${GI.POS[b.pos].label} ${b.name} jumps +${b.jump} to ${b.rating} after his big game!`));
+    (S._breaks || []).forEach((b) => notes.push(`BREAKTHROUGH: ${GI.POS[b.pos].label} ${b.name} jumps +${b.jump} to ${b.rating}${isV1(S) ? ' — the extra work paid off, and his ceiling just went up' : ' after his big game'}!`));
     S._breaks = [];
     (S._newInj || []).filter((i) => i.team === S.user && i.aggravated).forEach((i) => notes.push(`🩹 ${GI.shortName(i.name)} aggravated the injury he played through. Out ${i.weeks} weeks.`));
     if (notes.length) p.sections.push({ title: 'Locker Room', items: notes });
@@ -1147,6 +1154,8 @@
       if (S._ipGain) { imp.push(`+${S._ipGain.n} Impact Point${S._ipGain.n > 1 ? 's' : ''} for the ${S._ipGain.win ? (S._ipGain.playoff ? 'playoff win' : 'win') : 'effort'}. You have <b>${S.ip}</b> to spend in the Locker Room.`); S._ipGain = null; }
       fresh.forEach((c) => imp.push(`${GI.POS[c.pos].label} ${c.name} earned his Impact Card: <b>${GI.impact.MOVE[c.pos]}</b> (Bronze).`));
       if (imp.length) p.sections.push({ title: 'Impact Cards', items: imp });
+      const fn = GI.share ? GI.share.takeNews() : [];
+      if (fn.length) p.sections.unshift({ title: 'Around the Friends League', items: fn.slice(0, 4).map((x) => x.text) });
     }
     if (S._quote) { p.quote = S._quote; S._quote = null; }
     GI.league.weekly(S, p);
