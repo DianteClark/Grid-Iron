@@ -1,9 +1,9 @@
 /* Grid Iron service worker: offline play + quick updates */
-const VERSION = 'gridiron-v1.0.0';
+const VERSION = 'gridiron-v1.0.1';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'js/data.js', 'js/icons.js', 'js/playbook.js', 'js/stadium.js', 'js/sim.js', 'js/cards.js', 'js/dev.js', 'js/impact.js', 'js/share.js', 'js/rating.js', 'js/crests.js', 'js/season.js', 'js/league.js', 'js/legacy.js', 'js/audio.js', 'js/anim.js', 'js/ui.js', 'js/ui-franchise.js', 'js/ui-extra.js', 'js/ui-social.js',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon.svg',
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon-v1.png', 'icons/favicon.svg',
 ];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
