@@ -18,6 +18,14 @@
     if (call === 'blitz_out') { f.WLB = [-8, 1.8]; f.SLB = [8, 1.8]; f.DE1 = [-4.5, 1]; f.DE2 = [4.5, 1]; }
     return f;
   }
+  // v1 formations: where the backfield and the slot line up before the snap
+  function FOf(form) {
+    const f = JSON.parse(JSON.stringify(FO));
+    if (form === 'iform') { f.QB = [0, -1.9]; f.WR3 = [0, -4.4]; f.RB = [0, -7.2]; f.WR1 = [-17, -1.2]; }
+    if (form === 'single') { f.QB = [0, -1.9]; f.RB = [0, -6.6]; f.WR3 = [-9, -1.6]; }
+    if (form === 'trick') { f.RB = [-2.4, -5.2]; f.WR3 = [-7.6, -1.8]; f.TE = [9.5, -1.6]; }
+    return f;
+  }
   const KO_O = ['LT', 'LG', 'C', 'RG', 'RT', 'TE', 'QB', 'WR1', 'WR2', 'WR3', 'RB'];
 
   function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
@@ -307,10 +315,15 @@
     }
     mkPlayer(id, p, team, color) {
       const role = id.slice(2);
-      const star = team.stars.find((s) => s.role === role && !s.injured);
+      const card = GI.starAt ? GI.starAt(team, role) : team.stars.find((s) => s.role === role && !s.injured);
+      const v1 = team.v === 1;
       const stripe = color === team.c1 ? team.c2 : team.c1;
-      const name = star ? star.name.split(' ').slice(-1)[0] : GI.LAST[hashStr((team.abbr || '') + role) % GI.LAST.length];
-      return { id, role, name: name.toUpperCase(), side: id[0], rx: p[0], ry: p[1], color, stripe, glyph: team.glyph || GI.TEAM_GLYPH[team.idx], star: !!star, num: star ? star.num : null, fire: !!star && (star.meter >= 100 || star.armed), armed: !!star && star.armed, ang: null };
+      const h = hashStr((team.abbr || '') + role);
+      // v1: every player is a card — real names and numbers for all; linemen get a number of their own
+      const name = card && !card.unit ? card.name.split(' ').slice(-1)[0] : GI.LAST[h % GI.LAST.length];
+      const num = card && card.num != null ? card.num : (GI.unitRole && GI.unitRole(role) !== role ? (role[0] === 'D' ? 90 + (h % 10) : 60 + (h % 20)) : null);
+      const star = v1 ? !!(card && card.star) : !!card;
+      return { id, role, name: name.toUpperCase(), side: id[0], rx: p[0], ry: p[1], color, stripe, glyph: team.glyph || GI.TEAM_GLYPH[team.idx], star, tier: card && card.tier, num: v1 || star ? num : null, fire: star && (card.meter >= 100 || card.armed), armed: star && card.armed, cid: card ? card.id : null, ang: null };
     }
     toAbs(rx, ry) {
       const { los, dir } = this.ctxPlay;
@@ -341,6 +354,8 @@
         this.players = ids.map((id) => {
           const p = this.mkPlayer(id, S.tracks[id][0].slice(1), id[0] === 'o' ? ot : dt, id[0] === 'o' ? oc : dc);
           if (prev[id]) { p.fire = prev[id].fire; p.armed = prev[id].armed; }
+          const f = (res.impact || []).find((x) => x.id === p.cid && ((p.side === 'o') === (x.side === offSide)));
+          if (f) p.imp = ['#c98a52', '#c98a52', '#c9d3e4', '#ffc53d', '#b78cff'][f.tier] || '#ffc53d';
           return p;
         });
         this.lines = (res.kind === 'kickoff') ? null : { los: res.los, fd: res.toGo && !(res.kind === 'fg' || res.kind === 'xp' || res.kind === 'punt') ? res.los + res.dir * res.toGo : null, dir: res.dir };
@@ -556,6 +571,11 @@
       list.forEach(({ p, x, y }) => {
         const R = RAD(p);
         if (p.armed) { g.strokeStyle = `rgba(255,197,61,${0.5 + pulse * 0.5})`; g.lineWidth = 2.5; g.beginPath(); g.arc(x, y, R * 1.3 + 3 + pulse * 2, 0, 7); g.stroke(); }
+        if (p.imp) { // an Impact Card in play: a spinning ring in the card's tier color
+          const sp = performance.now() / 320;
+          g.save(); g.strokeStyle = p.imp; g.lineWidth = 3; g.shadowColor = p.imp; g.shadowBlur = 10; g.setLineDash([R * 0.9, R * 0.55]); g.lineDashOffset = -sp * R;
+          g.beginPath(); g.arc(x, y, R * 1.55 + 2, 0, 7); g.stroke(); g.restore();
+        }
         g.fillStyle = p.star ? '#ffc53d' : 'rgba(6,10,20,.8)'; g.beginPath(); g.arc(x, y, R + (p.star ? 2.2 : 1.1), 0, 7); g.fill();
         sphere(g, x, y, R, p.color);
         // direction notch
@@ -566,7 +586,7 @@
         g.lineTo(x + Math.cos(a + 0.5) * R * 0.86, y + Math.sin(a + 0.5) * R * 0.86);
         g.lineTo(x + Math.cos(a - 0.5) * R * 0.86, y + Math.sin(a - 0.5) * R * 0.86);
         g.closePath(); g.fill();
-        if (p.star && p.num != null && R >= 6) {
+        if (p.num != null && R >= 6) {
           g.font = F(R * 1.05); g.textAlign = 'center'; g.textBaseline = 'middle';
           g.fillStyle = 'rgba(0,0,0,.35)'; g.fillText(String(p.num), x + 0.8, y + 1.6);
           g.fillStyle = GI.inkOn(p.color); g.fillText(String(p.num), x, y + 0.8);
@@ -751,11 +771,13 @@
     return { tracks: T, ball, pops, dur, sfx };
   }
 
-  function initScrim(ctx, def) {
-    for (const r in FO) ctx.T['o:' + r] = [[0, FO[r][0], FO[r][1]]];
+  function initScrim(ctx, def, form) {
+    const fo = FOf(form);
+    for (const r in fo) ctx.T['o:' + r] = [[0, FO[r][0], FO[r][1]]];
     const z = FD('zone'), f = FD(def);
     for (const r in z) ctx.T['d:' + r] = [[0, z[r][0], z[r][1]], [0.35, f[r][0], f[r][1]], [0.45, f[r][0], f[r][1]]];
-    for (const r in FO) ctx.go('o:' + r, 0.45, FO[r][0], FO[r][1]);
+    for (const r in fo) ctx.go('o:' + r, 0.45, fo[r][0], fo[r][1]);
+    return fo;
   }
   const DROLES = Object.keys(FD0);
   const OROLES = Object.keys(FO);
@@ -773,11 +795,11 @@
 
   function buildScrimmage(res, ctx) {
     const { go, stay, at, ball, pops } = ctx;
-    initScrim(ctx, res.def);
+    const fo = initScrim(ctx, res.def, res.form);
     const S = 0.5; // snap
     const blitz = res.def === 'blitz_in' || res.def === 'blitz_out';
     ball.push({ type: 'hold', who: 'o:C', t0: 0, t1: S });
-    ball.push({ type: 'air', from: [0, -1], to: [0, -5], h: 0.4, t0: S, t1: S + 0.14 });
+    ball.push({ type: 'air', from: [0, -1], to: [fo.QB[0], fo.QB[1]], h: fo.QB[1] > -3 ? 0.1 : 0.4, t0: S, t1: S + (fo.QB[1] > -3 ? 0.06 : 0.14) });
     const isRunPlay = res.kind === 'run' && !res.trick;
     // default OL / DL engagement
     ['LT', 'LG', 'C', 'RG', 'RT'].forEach((r) => { const p = at('o:' + r); go('o:' + r, S + 0.35, p[0] * 1.05, isRunPlay ? 0 : -2.2); });

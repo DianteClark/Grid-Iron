@@ -213,7 +213,7 @@
         const v = p[k] || 0, cur = S.book.game[k];
         if (v && (!cur || v > cur.v)) {
           S.book.game[k] = { v, name: p.name, team: p.team, year: S.year, id: p.id, pos: p.pos };
-          if (cur && cur.v >= L.REC_MIN.game[k]) (S._recs = S._recs || []).push({ scope: 'game', key: k, v, name: p.name, team: p.team });
+          if (cur && cur.v >= L.REC_MIN.game[k]) { const rc = { scope: 'game', key: k, v, name: p.name, team: p.team, prev: cur.v }; (S._recs = S._recs || []).push(rc); if (GI.share) GI.share.fromRecord(S, rc); }
         }
       });
     });
@@ -510,7 +510,7 @@
     Object.values(S.sstats).forEach((r) => {
       L.RECKEYS.forEach((k) => {
         const v = r[k] || 0, cur = S.book.season[k];
-        if (v && (!cur || v > cur.v)) { S.book.season[k] = { v, name: r.name, team: r.team, year: S.year, id: r.id, pos: r.pos }; if (cur && cur.v >= L.REC_MIN.season[k]) out.push({ scope: 'season', key: k, v, name: r.name, team: r.team }); }
+        if (v && (!cur || v > cur.v)) { S.book.season[k] = { v, name: r.name, team: r.team, year: S.year, id: r.id, pos: r.pos }; if (cur && cur.v >= L.REC_MIN.season[k]) { const rc = { scope: 'season', key: k, v, name: r.name, team: r.team, prev: cur.v }; out.push(rc); if (GI.share) GI.share.fromRecord(S, rc); } }
       });
       const hit = idx[r.id];
       if (!hit) return;
@@ -522,7 +522,7 @@
       const c = s.career; if (!c) return;
       L.RECKEYS.forEach((k) => {
         const v = c[k] || 0, cur = S.book.career[k];
-        if (v && (!cur || v > cur.v)) { S.book.career[k] = { v, name: s.name, team, year: S.year, id: s.id, pos: s.pos }; if (cur && cur.v >= L.REC_MIN.career[k] && cur.id !== s.id) out.push({ scope: 'career', key: k, v, name: s.name, team }); }
+        if (v && (!cur || v > cur.v)) { S.book.career[k] = { v, name: s.name, team, year: S.year, id: s.id, pos: s.pos }; if (cur && cur.v >= L.REC_MIN.career[k] && cur.id !== s.id) { const rc = { scope: 'career', key: k, v, name: s.name, team, prev: cur.v }; out.push(rc); if (GI.share) GI.share.fromRecord(S, rc); } }
       });
     });
     out.filter((x) => x.team === S.user).forEach(() => lp(6, 'Record book'));
@@ -768,6 +768,7 @@
     const tS = get.stars.map((id) => theirs.find((s) => s.id === id)).filter(Boolean);
     if (!gS.length && !tS.length && !give.picks.length && !get.picks.length) return { ok: false, why: 'Pick players or picks to swap', ratio: 0 };
     const ua = rosterAfter(S, S.user, give.stars, tS), pa = rosterAfter(S, partner, get.stars, gS);
+    if (S.rosters[S.user].v === 1) { ua.overflow = pa.overflow = false; ua.missing = pa.missing = []; }
     if (ua.overflow) return { ok: false, why: 'Not enough roster room on your side' };
     if (pa.overflow) return { ok: false, why: `${T(partner).city} doesn't have the roster room` };
     if (ua.missing.length) return { ok: false, why: `You'd have no ${ua.missing.map((p) => GI.POS[p].label).join('/')} star` };
@@ -788,6 +789,7 @@
     const mine = SN.allStars(S, S.user), theirs = SN.allStars(S, partner);
     const gS = give.stars.map((id) => mine.find((s) => s.id === id)), tS = get.stars.map((id) => theirs.find((s) => s.id === id));
     const place = (team, outIds, inStars) => {
+      if (S.rosters[team].v === 1) { outIds.forEach((id) => SN.removeFromRoster(S, team, id)); inStars.forEach((c) => GI.dev.addCard(S, team, c)); GI.dev.fillLineup(S, team); return; }
       const a = rosterAfter(S, team, outIds, inStars);
       a.r.stars = a.starters; a.r.bench = a.bench;
       if (a.bench && a.bench.contract && !inStars.includes(a.bench)) { /* stays as it was */ }

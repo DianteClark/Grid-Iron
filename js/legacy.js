@@ -73,7 +73,7 @@
       if (j === 'ice') return { c1: '#eef3f8', c2: c1 };
       return { c1, c2 };
     },
-    // ---------- the sticker album ----------
+    // ---------- players you've shared a field with (unlocks Heritage jerseys) ----------
     collect(list, shiny) {
       load();
       const fresh = [];
@@ -83,18 +83,18 @@
         if (!cur) {
           D.album[x.key] = Object.assign({}, x, { got: Date.now(), shiny: shiny ? [shiny] : [] });
           fresh.push(D.album[x.key]);
-          if (shiny && SHINY_LP[shiny]) Lg.addLP(SHINY_LP[shiny], `Shiny sticker: ${shiny}`);
+          if (shiny && SHINY_LP[shiny]) Lg.addLP(SHINY_LP[shiny], `Legacy moment: ${shiny}`);
         } else {
           cur.rating = Math.max(cur.rating || 0, x.rating || 0);
           cur.year = x.year || cur.year;
-          if (shiny && !cur.shiny.includes(shiny)) { cur.shiny.push(shiny); fresh.push(cur); if (SHINY_LP[shiny]) Lg.addLP(SHINY_LP[shiny], `Shiny sticker: ${shiny}`); }
+          if (shiny && !cur.shiny.includes(shiny)) { cur.shiny.push(shiny); fresh.push(cur); if (SHINY_LP[shiny]) Lg.addLP(SHINY_LP[shiny], `Legacy moment: ${shiny}`); }
         }
       });
       // finish a team page (8 stickers) for a bonus
       const per = {};
       Object.values(D.album).forEach((s) => { if (s.ti != null) per[s.ti] = (per[s.ti] || 0) + 1; });
-      Object.keys(per).forEach((ti) => { if (per[ti] >= 8 && !D.pages[ti]) { D.pages[ti] = true; Lg.addLP(10, `Album page complete: ${(GI.TEAMS[ti] || {}).name || 'team'} (Heritage jersey unlocked)`); } });
-      Lg.fresh.push(...fresh.filter((f) => !Lg.fresh.includes(f)));
+      Object.keys(per).forEach((ti) => { if (per[ti] >= 8 && !D.pages[ti]) { D.pages[ti] = true; Lg.addLP(10, `Heritage jersey unlocked: ${(GI.TEAMS[ti] || {}).name || 'team'}`); } });
+      // v1: the sticker album is retired (share cards replaced it); this record only unlocks Heritage jerseys
       save();
       return fresh;
     },

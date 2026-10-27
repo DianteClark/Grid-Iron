@@ -18,11 +18,92 @@
     const us = last.h === S.user ? last.hs : last.as, them = last.h === S.user ? last.as : last.hs;
     return `<div class="lastmeet">Last meeting: <b class="${us > them ? 'w' : us < them ? 'l' : ''}">${us > them ? 'W' : us < them ? 'L' : 'T'} ${us}-${them}</b></div>`;
   }
+  // ---------- tier promotions: the card upgrade moment ----------
+  const TIER_LBL = { bronze: 'Starter', silver: 'Pro', gold: 'Pro Bowl', elite: 'All-Pro', star: 'Star Player' };
+  function tierReveal() {
+    const up = (S.tierUps || []).shift(); SN.save(S);
+    if (!up) return;
+    const c = SN.allStars(S, S.user).find((x) => x.id === up.id);
+    if (!c) { tierReveal(); return; }
+    const ut = T(S.user), tc = Object.assign({}, ut, GI.legacy.jersey(ut));
+    sfx(up.to === 'star' ? 'td' : 'star');
+    modal(`<div class="tierup t-${up.to}"><span class="label">Card upgrade</span><h2>${esc(TIER_LBL[up.from])} → ${esc(TIER_LBL[up.to])}</h2>
+      <div class="tu-card">${U.cardHTML(c, tc)}</div>
+      <p class="muted">${esc(c.name)} is now ${c.rating} overall${up.to === 'star' ? ' — a Star Player with his own Show-Me meter.' : '.'}</p>
+      <button class="btn gold block" id="tuOk">${(S.tierUps || []).length ? 'Next ▶' : 'Nice ▶'}</button></div>`, (m) => (m.querySelector('#tuOk').onclick = () => { closeModal(); if ((S.tierUps || []).length) setTimeout(tierReveal, 150); }));
+  }
+  // ---------- weekly practice ----------
+  // ---------- the guided first season: the Coach's Clipboard ----------
+  const GUIDE = [
+    ['camp', 'Run spring training', 'Every player grows (or ages). Young ones can break through.', null],
+    ['reps', 'Give a young player extra reps', 'Reps add XP and build breakthrough odds. Stars are built, not found.', 'reps'],
+    ['locker', 'Visit the Locker Room', 'Pick your captains and see your Impact Cards.', 'locker'],
+    ['game', 'Play a game yourself', 'Tap Play instead of Sim. Talent decides most games; good calls steal the close ones.', null],
+    ['impact', 'Play an Impact Card', 'In the play sheet, tap a card, then call a play that fits him.', null],
+    ['scout', 'Read a scouting report', "The Gazette's report on your next opponent sometimes leaks their go-to play.", null],
+    ['friend', 'Send your team code to a friend', 'Friends & Challenges on the main menu. Rivalries start here.', 'friends'],
+  ];
+  function guideState() {
+    if (!S || S.rosters[S.user].v !== 1) return null;
+    const g = S.guide = S.guide || { done: {}, paid: {} };
+    if (g.hidden) return null;
+    if (S.phase !== 'camp' || S.year > 1) g.done.camp = true;
+    if ((S.practice && (S.practice.reps || []).length) || SN.allStars(S, S.user).some((c) => c.invest)) g.done.reps = true;
+    if (GI.prefs.get().sentCode) g.done.friend = true;
+    // each step pays 2 Impact Points, once
+    let paid = false;
+    GUIDE.forEach(([k]) => { if (g.done[k] && !g.paid[k]) { g.paid[k] = true; S.ip = (S.ip || 0) + 2; paid = true; } });
+    if (paid) SN.save(S);
+    const n = GUIDE.filter(([k]) => g.done[k]).length;
+    if (n === GUIDE.length) { if (!g.finished) { g.finished = true; S.ip += 5; SN.save(S); toast("Coach's Clipboard complete: +5 Impact Points", 2200); } return null; }
+    return { g, n };
+  }
+  function guideHTML() {
+    const st = guideState(); if (!st) return '';
+    const next = GUIDE.find(([k]) => !st.g.done[k]);
+    return `<div class="sticker panel guide"><div class="row between"><h3>${GI.ico('whistle')} Coach's Clipboard</h3><span class="pill gold">${st.n}/${GUIDE.length}</span></div>
+      <p class="muted" style="margin:2px 0 8px;font-size:12.5px">Your first season, step by step. Each one pays 2 Impact Points.</p>
+      <ul class="glist">${GUIDE.map(([k, t, d, go]) => `<li class="${st.g.done[k] ? 'done' : k === next[0] ? 'next' : ''}"><i>${st.g.done[k] ? GI.ico('check') : ''}</i><span><b>${t}</b>${k === next[0] ? `<small>${d}</small>` : ''}</span>${!st.g.done[k] && go ? `<button class="btn ghost tiny" data-guide="${go}">Go</button>` : ''}</li>`).join('')}</ul>
+      <button class="linkbtn" id="guideHide">Hide the clipboard</button></div>`;
+  }
+  function practiceHTML() {
+    const P = S.practice || (S.practice = { focus: 'fund', reps: [] });
+    const D = GI.dev;
+    const all = SN.allStars(S, S.user);
+    const reps = (P.reps || []).map((id) => all.find((x) => x.id === id)).filter(Boolean);
+    const ut = T(S.user), tc = Object.assign({}, ut, GI.legacy.jersey(ut));
+    const slots = [0, 1, 2].map((k) => reps[k] ? `<div class="repslot full">${U.cardHTML(reps[k], tc, { small: true })}<button class="repx" data-unrep="${reps[k].id}" aria-label="Remove">✕</button></div>` : `<button class="repslot" data-addrep="1">${GI.ico('plus')}<span>Add player</span></button>`).join('');
+    return `<div class="sticker panel practice"><div class="row between"><h3>${GI.ico('whistle')} This week's practice</h3><span class="label">${D.REP_XP} XP per rep</span></div>
+      <div class="seg" id="prFocus">${Object.keys(D.PRACTICE).map((k) => `<button data-v="${k}" class="${P.focus === k ? 'on' : ''}">${D.PRACTICE[k].name}</button>`).join('')}</div>
+      <p class="muted" style="font-size:13px;margin:8px 0 10px">${D.PRACTICE[P.focus].desc}. Extra reps go to up to ${D.REPS} players. For players 26 and under they also build breakthrough odds: that's how Star Players get made.</p>
+      <div class="reps">${slots}</div></div>`;
+  }
+  const breakOdds = (c) => Math.round(Math.min(0.6, (c.spark || 0.05) + ((S.up.gym || 1) - 1) * 0.02) * 100);
+  function pickReps() {
+    const P = S.practice;
+    const ut = T(S.user), tc = Object.assign({}, ut, GI.legacy.jersey(ut));
+    const list = SN.allStars(S, S.user).filter((c) => !(S.inj[c.id] > 0)).sort((a, b) => (b.pot - b.rating) - (a.pot - a.rating) || a.age - b.age);
+    const draw = (m) => {
+      m.innerHTML = `<div class="row between"><h2>Extra reps</h2>${closeBtn}</div><p class="muted" style="margin-top:-4px">Pick up to ${GI.dev.REPS}. Reps add XP, and for players 26 and under they build <b>breakthrough odds</b> (⚡): a breakthrough jumps his rating and raises his ceiling. Sorted by room to grow.</p>
+        <div class="cstrip picks">${list.map((c) => `<div class="pickwrap ${P.reps.includes(c.id) ? 'on' : ''}" data-rep="${c.id}">${U.cardHTML(c, tc, { small: true })}<span class="room">+${Math.max(0, c.pot - c.rating)} room${GI.dev.canBreak(c) ? ` · ⚡${breakOdds(c)}%` : ''}</span></div>`).join('')}</div>
+        <button class="btn green block" id="repDone" style="margin-top:12px">Done</button>`;
+      m.querySelector('#mx').onclick = () => { closeModal(); renderHub(); };
+      m.querySelector('#repDone').onclick = () => { closeModal(); SN.save(S); renderHub(); };
+      m.querySelectorAll('[data-rep]').forEach((b) => (b.onclick = () => {
+        const id = b.dataset.rep;
+        if (P.reps.includes(id)) P.reps = P.reps.filter((x) => x !== id);
+        else if (P.reps.length < GI.dev.REPS) P.reps.push(id);
+        else { toast(`Only ${GI.dev.REPS} players can get extra reps`); return; }
+        draw(m);
+      }));
+    };
+    modal('', draw);
+  }
   function venueLine() {
     const f = SN.forecast(S); if (!f) return '';
     const v = f.v;
     const fc = f.list.slice(0, 3).map((x) => `${GI.WEATHER[x.k].icon} ${x.p}%`).join(' · ');
-    return `<div class="venueline"><span>📍 <b>${esc(v.name)}</b></span><span>${GI.ROOFS[v.roof].icon} ${v.roof === 'open' ? GI.SURFACES[v.surface].name : GI.ROOFS[v.roof].name + ' · ' + GI.SURFACES[v.surface].name}</span><span>${f.storm ? 'Forecast: ' : ''}${fc}</span></div>`;
+    return `<div class="venueline"><span>${GI.ico('pin')} <b>${esc(v.name)}</b></span><span>${GI.ROOFS[v.roof].icon} ${v.roof === 'open' ? GI.SURFACES[v.surface].name : GI.ROOFS[v.roof].name + ' · ' + GI.SURFACES[v.surface].name}</span><span>${f.storm ? 'Forecast: ' : ''}${fc}</span></div>`;
   }
   function renderHub() {
     sync(); U.setS(S);
@@ -60,7 +141,7 @@
         ${awardsNew ? `<button class="sticker awardsbtn" id="hubAwards"><span>🏆</span><b>Awards Night</b><small>MVP, Rookie of the Year, the All-Iron team…</small><span class="go">▶</span></button>` : ''}
         <div class="sticker nextgame phase"><div class="row between"><span class="pill gold">Offseason</span><span class="label">Cap room ${money(L.capRoom(S, S.user))}</span></div>
         <h3>Front office time</h3>
-        <p class="muted">${exp ? `<b>${exp} contract${exp > 1 ? 's' : ''} expiring.</b> Re-sign or they walk. ` : ''}${S.faDone ? '' : `<b>Free agency is open</b> — ${(S.freeAgents || []).length} players looking for a team. `}Hire coaches, make trades, upgrade facilities, then head to the Year ${S.year + 1} draft (${Math.min(8, 4 + S.year)} rounds).</p>
+        <p class="muted">${exp ? `<b>${exp} contract${exp > 1 ? 's' : ''} expiring.</b> Re-sign or they walk. ` : ''}${S.faDone ? '' : `<b>Free agency is open</b> — ${(S.freeAgents || []).length} players looking for a team. `}Hire coaches, make trades, upgrade facilities, then head to the Year ${S.year + 1} draft (${S.rosters[S.user].v === 1 ? 3 : Math.min(8, 4 + S.year)} rounds).</p>
         <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn gold small" style="flex:1" id="hubOffice">Front Office</button><button class="btn ghost small" style="flex:1" id="hubFA">${S.faDone ? 'FA results' : 'Free Agency'}</button><button class="btn ghost small" style="flex:1" id="hubTrade">Trades</button></div>
         ${identityHTML()}
         <button class="btn green block" id="hubAdvance" style="margin-top:12px">To the Draft ▶</button></div>`;
@@ -71,17 +152,18 @@
         const seedTxt = S.bracket ? ` · #${S.bracket.seedOf[S.user]} vs #${S.bracket.seedOf[c.opp]}` : '';
         const hot = L.heat(S, S.user, c.opp) + L.heat(S, c.opp, S.user) >= (L.isDiv(S.user, c.opp) ? 28 : 50);
         next = `<div class="sticker nextgame">
-          <div class="row between"><span class="pill ${c.playoff ? 'red' : 'gold'}">${c.label}${seedTxt}</span><span class="label">${hot ? '🔥 Rivalry · ' : ''}${c.ironBowl ? 'Neutral site' : c.home ? 'Home' : 'Away'}</span></div>
+          <div class="row between"><span class="pill ${c.playoff ? 'red' : 'gold'}">${c.label}${seedTxt}</span><span class="label">${hot ? GI.ico('flame') + ' Rivalry · ' : ''}${c.ironBowl ? 'Neutral site' : c.home ? 'Home' : 'Away'}</span></div>
           <div class="ng-mid">${helmet(ut, 'md')}<span class="ng-vs">${c.home || c.ironBowl ? 'VS' : 'AT'}</span>${helmet(op, 'md')}</div>
           <div class="ng-opp"><b>${op.city} ${op.name}</b><span class="muted">${orc} · ${SN.teamOvr(S, c.opp)} OVR · ${S.rosters[c.opp].stars.length} stars</span></div>
           ${lastMeeting(c.opp)}${venueLine()}
           ${modsHTML()}
           <div class="row" style="gap:10px;margin-top:12px"><button class="btn green" style="flex:2" id="hubPlay">Play ▶</button><button class="btn ghost" style="flex:1" id="hubSim">Sim</button></div>
         </div>`;
+        if (S.rosters[S.user].v === 1) next += practiceHTML();
       } else {
         const bye = S.bracket && S.bracket.round === 0 && S.bracket.seedOf[S.user] <= 2;
         next = `<div class="sticker nextgame"><span class="pill red">${c.label}</span>
-          <h3 style="margin:10px 0 4px">${bye ? 'First-round bye! 😎' : S.bracket && S.bracket.seedOf[S.user] ? 'Eliminated' : 'Missed the playoffs'}</h3>
+          <h3 style="margin:10px 0 4px">${bye ? 'First-round bye!' : S.bracket && S.bracket.seedOf[S.user] ? 'Eliminated' : 'Missed the playoffs'}</h3>
           <p class="muted" style="margin:0 0 12px">${bye ? 'Rest up while the Wild Card games play out.' : 'Watch the rest of the bracket unfold.'}</p>
           <button class="btn gold block" id="hubSimRound">Sim ${c.label} ▶</button></div>`;
       }
@@ -89,34 +171,41 @@
     const div = SN.sorted(S, SN.division(S.user));
     const hype = Math.round(S.hype || 40);
     $('#hubBody').innerHTML = `
-      <div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="hubBack" aria-label="Main menu">←</button><h2>Year ${S.year}</h2><span class="cashpill">💰 ${money(S.cash)}</span><button class="iconbtn" id="hubSet" aria-label="Settings">⚙</button></div>
+      <div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="hubBack" aria-label="Main menu">←</button><h2>Year ${S.year}</h2><span class="cashpill">${GI.ico('coin')} ${money(S.cash)}</span><button class="iconbtn" id="hubSet" aria-label="Settings">${GI.ico('gear')}</button></div>
       <div class="sticker hubteam" style="--tc:${ut.c1}">
         ${helmet(ut, 'lg')}
         <div class="ht-info"><span class="label">${ut.city}</span><h2>${ut.name}</h2>
           <div class="row" style="gap:6px;flex-wrap:wrap"><span class="pill">${SN.divName(S.user)}${gp ? ' · ' + ord(place) : ''}</span><span class="pill">${ovr} OVR</span>${streak ? `<span class="pill">${streak}</span>` : ''}${S.morale[S.user] ? `<span class="pill ${S.morale[S.user] > 0 ? 'green' : 'red'}">Morale ${S.morale[S.user] > 0 ? '+' : ''}${S.morale[S.user]}</span>` : ''}${S.rosters[S.user].identity ? `<span class="pill">${GI.IDENTITIES[S.rosters[S.user].identity].icon} ${GI.IDENTITIES[S.rosters[S.user].identity].name}</span>` : ''}</div>
-          ${gp ? (() => { const sp = SN.splits(S, S.user); return `<div class="splits">🏠 ${sp.home.w}-${sp.home.l} · ✈️ ${sp.away.w}-${sp.away.l}</div>`; })() : ''}
-          <div class="hype"><span>📣 Fan hype</span><div><i style="width:${hype}%"></i></div><b>${hype}</b></div></div>
+          ${gp ? (() => { const sp = SN.splits(S, S.user); return `<div class="splits">${GI.ico('home')} ${sp.home.w}-${sp.home.l} · ${GI.ico('plane')} ${sp.away.w}-${sp.away.l}</div>`; })() : ''}
+          <div class="hype"><span>${GI.ico('flame')} Fan hype</span><div><i style="width:${hype}%"></i></div><b>${hype}</b></div></div>
         <div class="ht-rec">${SN.recStr(r)}</div>
       </div>
+      ${guideHTML()}
       ${next}
+      ${lockerHTML()}
       ${goalsHTML()}
       <div class="hubgrid">
-        <button class="sticker hbtn" data-go="roster"><span>⭐</span>Roster</button>
-        <button class="sticker hbtn" data-go="office"><span>🏢</span>Front Office</button>
-        <button class="sticker hbtn" data-go="gazette"><span>📰</span>Gazette</button>
-        <button class="sticker hbtn" data-go="standings"><span>📊</span>Standings</button>
-        <button class="sticker hbtn" data-go="playoffs"><span>🏟️</span>Playoffs</button>
-        <button class="sticker hbtn" data-go="schedule"><span>🗓️</span>Schedule</button>
-        <button class="sticker hbtn ${L.tradeOpen(S) ? '' : 'dim'}" data-go="trade"><span>🔁</span>Trades</button>
-        <button class="sticker hbtn" data-go="records"><span>🏛️</span>Records</button>
-        <button class="sticker hbtn" data-go="reel"><span>🎬</span>Highlights</button>
+        <button class="sticker hbtn" data-go="roster">${GI.ico('roster')}Roster</button>
+        <button class="sticker hbtn" data-go="office">${GI.ico('office')}Front Office</button>
+        <button class="sticker hbtn" data-go="gazette">${GI.ico('gazette')}Gazette</button>
+        <button class="sticker hbtn" data-go="standings">${GI.ico('standings')}Standings</button>
+        <button class="sticker hbtn" data-go="playoffs">${GI.ico('bracket')}Playoffs</button>
+        <button class="sticker hbtn" data-go="schedule">${GI.ico('calendar')}Schedule</button>
+        <button class="sticker hbtn ${L.tradeOpen(S) ? '' : 'dim'}" data-go="trade">${GI.ico('trade')}Trades</button>
+        <button class="sticker hbtn" data-go="records">${GI.ico('pillar')}Records</button>
+        <button class="sticker hbtn" data-go="reel">${GI.ico('film')}Highlights</button>
       </div>
       <div class="sticker panel"><div class="row between"><h3>${SN.divName(S.user)}</h3><span class="label">W-L · PF-PA</span></div>
         ${div.map((i) => rowTeam(i)).join('')}</div>`;
     $('#hubBack').onclick = () => { U.refreshTitle(); show('title'); };
+    if ((S.tierUps || []).length && !$('#modal').classList.contains('on')) setTimeout(tierReveal, 350);
+    if (U.shareToasts) setTimeout(U.shareToasts, 900);
     $('#hubSet').onclick = () => U.showSettings();
     const on = (id, fn) => { const b = $('#' + id); if (b) b.onclick = fn; };
     on('hubPlay', () => startSeasonGame());
+    on('hubLocker', () => openLocker());
+    on('guideHide', () => { S.guide.hidden = true; SN.save(S); renderHub(); });
+    $$('#hubBody [data-guide]').forEach((b) => (b.onclick = () => { const k = b.dataset.guide; if (k === 'reps') pickReps(); if (k === 'locker') openLocker(); if (k === 'friends') U.openFriends(); }));
     on('hubSim', () => simWeek(true));
     on('hubSimRound', () => simWeek(false));
     on('hubDraft', () => { renderDraft(); show('draft'); });
@@ -125,6 +214,9 @@
     on('hubTrade', () => openTrade());
     on('hubReel', () => openReel());
     on('hubAwards', () => awardsNight());
+    $$('#prFocus button').forEach((b) => (b.onclick = () => { S.practice.focus = b.dataset.v; SN.save(S); renderHub(); }));
+    $$('#hubBody [data-addrep]').forEach((b) => (b.onclick = () => pickReps()));
+    $$('#hubBody [data-unrep]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); S.practice.reps = S.practice.reps.filter((x) => x !== b.dataset.unrep); SN.save(S); renderHub(); }));
     on('hubAdvance', () => {
       const exp = (S.expiring || []).length;
       const go = () => { SN.advanceToDraft(S); sfx('horn'); renderHub(); show('hub'); };
@@ -173,9 +265,9 @@
   function goalsHTML() {
     if (!(S.goals || []).length || !['regular', 'playoffs'].includes(S.phase)) return '';
     const p = S.owner.patience;
-    return `<div class="sticker panel goals"><div class="row between"><h3>🎯 Owner's goals</h3><span class="label">${esc(S.owner.name)}</span></div>
+    return `<div class="sticker panel goals"><div class="row between"><h3>${GI.ico('target')} Owner's goals</h3><span class="label">${esc(S.owner.name)}</span></div>
       <div class="patience"><span>Owner patience</span><div><i style="width:${p}%;background:${p >= 60 ? 'var(--green)' : p >= 35 ? 'var(--gold)' : 'var(--red)'}"></i></div><b>${p}</b></div>
-      ${S.goals.map((g) => { const pr = L.goalProgress(S, g); const pct = Math.min(100, Math.round((pr.v / Math.max(1, pr.target)) * 100)); return `<div class="goal ${pr.done ? 'done' : ''}"><span>${pr.done ? '✅' : '🎯'}</span><div><b>${g.text}</b><div class="gbar"><i style="width:${pct}%"></i></div></div><small>${g.id === 'star' || g.id === 'wins' || g.id === 'hype' ? `${Math.round(pr.v).toLocaleString()}/${pr.target.toLocaleString()}` : pr.done ? 'Done' : ''}<br>+${money(g.reward)}</small></div>`; }).join('')}</div>`;
+      ${S.goals.map((g) => { const pr = L.goalProgress(S, g); const pct = Math.min(100, Math.round((pr.v / Math.max(1, pr.target)) * 100)); return `<div class="goal ${pr.done ? 'done' : ''}"><span class="gico ${pr.done ? 'ok' : ''}">${GI.ico(pr.done ? 'check' : 'target')}</span><div><b>${g.text}</b><div class="gbar"><i style="width:${pct}%"></i></div></div><small>${g.id === 'star' || g.id === 'wins' || g.id === 'hype' ? `${Math.round(pr.v).toLocaleString()}/${pr.target.toLocaleString()}` : pr.done ? 'Done' : ''}<br>+${money(g.reward)}</small></div>`; }).join('')}</div>`;
   }
   function rowTeam(i, extra) {
     const t = T(i), r = S.rec[i];
@@ -288,22 +380,22 @@
     const home = GI.homeCollege(S.user);
     const myPicks = d.picks.filter((p, k) => p.team === S.user && k >= d.cur).length;
     $('#draftBody').innerHTML = `
-      <div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="drBack" aria-label="Back">←</button><h2>${d.opening ? 'Opening Draft' : 'Year ' + S.year + ' Draft'}</h2><span class="cashpill">💰 ${money(S.cash)}</span></div>
+      <div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="drBack" aria-label="Back">←</button><h2>${d.opening ? 'Opening Draft' : 'Year ' + S.year + ' Draft'}</h2><span class="cashpill">${GI.ico('coin')} ${money(S.cash)}</span></div>
       <div class="sticker clock ${yourTurn ? 'mine' : ''}">
-        ${done ? '<h3>The draft is complete!</h3>' : `${helmet(T(cur.team), 'sm')}<div style="flex:1;min-width:0"><span class="label">Round ${cur.round} · Pick ${cur.inRound} · #${(cur.round - 1) * 32 + cur.inRound} overall${cur.orig !== cur.team ? ` · via ${T(cur.orig).abbr}` : ''}</span><h3>${yourTurn ? "You're on the clock!" : T(cur.team).city + ' picking…'}</h3></div>${!yourTurn ? '<button class="btn ghost small" id="drSkip">⏩</button>' : ''}`}
+        ${done ? '<h3>The draft is complete!</h3>' : `${helmet(T(cur.team), 'sm')}<div style="flex:1;min-width:0"><span class="label">Round ${cur.round} · Pick ${cur.inRound} · #${(cur.round - 1) * 32 + cur.inRound} overall${cur.orig !== cur.team ? ` · via ${T(cur.orig).abbr}` : ''}</span><h3>${yourTurn ? "You're on the clock!" : T(cur.team).city + ' picking…'}</h3></div>${!yourTurn ? `<button class="btn ghost small" id="drSkip" aria-label="Skip to your pick">${GI.ico('ffwd')}</button>` : ''}`}
       </div>
-      <div class="sticker panel"><div class="row between"><span class="label">Your star slots</span><span class="label">${r.stars.length}/8 + backup · ${myPicks} pick${myPicks === 1 ? '' : 's'} left · cap room ${money(L.capRoom(S, S.user))}</span></div><div class="slots">${slotsHTML}</div>
-        ${must ? `<p class="mustnote">Rounds 1–3: you still need a <b>${must.map((x) => GI.POS[x].full).join(', ')}</b>.</p>` : ''}</div>
+      ${r.v === 1 ? needsHTML(myPicks) : `<div class="sticker panel"><div class="row between"><span class="label">Your star slots</span><span class="label">${r.stars.length}/8 + backup · ${myPicks} pick${myPicks === 1 ? '' : 's'} left · cap room ${money(L.capRoom(S, S.user))}</span></div><div class="slots">${slotsHTML}</div>
+        ${must ? `<p class="mustnote">Rounds 1–3: you still need a <b>${must.map((x) => GI.POS[x].full).join(', ')}</b>.</p>` : ''}</div>`}
       ${done ? `<button class="btn green block" id="drFinish">Read the Draft Gazette ▶</button>` : `
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn gold small" id="drAuto1" ${yourTurn ? '' : 'disabled'}>🎯 Auto-pick</button><button class="btn ghost small" id="drAutoAll">⏩ Auto-draft the rest</button><button class="btn ghost small" id="drPass" ${yourTurn && !must ? '' : 'disabled'}>Pass</button></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn gold small" id="drAuto1" ${yourTurn ? '' : 'disabled'}>${GI.ico('target')} Auto-pick</button><button class="btn ghost small" id="drAutoAll">${GI.ico('ffwd')} Auto-draft the rest</button><button class="btn ghost small" id="drPass" ${yourTurn && !must ? '' : 'disabled'}>Pass</button></div>
       <div class="seg" id="drView"><button data-v="avail" class="${draftView === 'avail' ? 'on' : ''}">Available (${d.pool.length})</button><button data-v="taken" class="${draftView === 'taken' ? 'on' : ''}">Taken (${d.log.length})</button></div>
       <div class="postabs">${tabs.map((t) => `<button class="${draftPos === t ? 'on' : ''}" data-pos="${t}">${t === 'ALL' ? 'All' : GI.POS[t].label}</button>`).join('')}</div>
       ${draftView === 'avail' ? `<div class="plist">${list.map((p) => {
         const chk = SN.canDraft(S, S.user, p);
         return `<button class="prow ${chk.ok ? '' : 'no'} ${p.careerPlayer ? 'career' : ''}" data-pid="${p.id}">
           <span class="pp-pos">${GI.POS[p.pos].label}</span>
-          <span class="pr-main"><b>${esc(p.name)}${p.careerPlayer ? ' <i class="tag career">🎮 Your career player</i>' : ''}${p.claimed ? ' <i class="tag">★ Scouted</i>' : ''}${p.sparkShown ? ' <i class="tag spark">⚡</i>' : ''}${p.college === home && p.rookie ? ' <i class="tag home">🏠 Hometown</i>' : ''}</b><small>${p.rookie ? 'Rookie' : 'Veteran'} · age ${p.age} · ${p.rookie ? p.college : (p.yrsPro || 0) + ' yrs pro'}${(p.traits || []).length ? ' · ' + p.traits.map((k) => GI.TRAITS[k].icon).join('') : ''}</small></span>
-          <span class="pr-est"><b>${p.est[0]}–${p.est[1]}</b><small>Pot ${p.gradeShown} · ${money(p.salary)}</small></span>
+          <span class="pr-main"><b>${esc(p.name)}${p.claimed ? ` <i class="tag">${GI.ico('scout')} Scouted</i>` : ''}${p.sparkShown ? ` <i class="tag spark">${GI.ico('spark')} Spark</i>` : ''}${p.college === home && p.rookie ? ` <i class="tag home">${GI.ico('home')} Hometown</i>` : ''}</b><small>${p.rookie ? 'Rookie' : 'Veteran'} · age ${p.age} · ${p.rookie ? p.college : (p.yrsPro || 0) + ' yrs pro'}${(p.traits || []).length ? ' · ' + p.traits.map((k) => GI.TRAITS[k].icon).join('') : ''}</small></span>
+          <span class="pr-est"><b>${p.est[0]}–${p.est[1]}</b><small>Pot ${p.gradeShown} · ${money(p.salary)}</small>${r.v === 1 ? startsTag(p) : ''}</span>
         </button>`;
       }).join('') || '<p class="muted">Nobody left at this position.</p>'}</div>`
       : `<ul class="takenlist">${taken.map((x) => `<li class="${x.team === S.user ? 'mine' : ''}">${helmet(T(x.team), 'xs')}<span class="tk-n">R${x.round}.${x.inRound}</span><span class="tk-p"><b>${GI.POS[x.p.pos].label} ${esc(x.p.name)}</b><small>${T(x.team).abbr}${x.team === S.user ? ` · true ${x.p.rating}` : ` · est ${x.p.est[0]}–${x.p.est[1]}`}${x.slot === 'bench' ? ' · backup' : ''}</small></span></li>`).join('') || '<li class="muted">Nobody yet.</li>'}</ul>`}`}
@@ -317,6 +409,26 @@
     const a1 = $('#drAuto1'); if (a1) a1.onclick = () => { const p = SN.autoChoice(S); if (p) doDraft(p.id); };
     const aa = $('#drAutoAll'); if (aa) aa.onclick = () => { clearTimeout(liveTimer); const made = SN.draftAuto(S); draftTicker = made.reverse().concat(draftTicker).slice(0, 60); sfx('select'); renderDraft(true); };
     const ps = $('#drPass'); if (ps) ps.onclick = () => { if (SN.draftPass(S)) renderDraft(); };
+  }
+  // v1 draft helpers: where you're thin, and whether a prospect would start
+  function needsHTML(myPicks) {
+    const r = S.rosters[S.user];
+    const ovr = SN.teamOvr(S, S.user);
+    const groups = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'KP'].map((pos) => {
+      const here = r.stars.filter((c) => c.pos === pos).sort((a, b) => a.rating - b.rating);
+      const low = here.length ? here[0].rating : 0;
+      return { pos, low, need: low < ovr - 3 };
+    });
+    return `<div class="sticker panel"><div class="row between"><span class="label">Your lineup · weakest starter by position</span><span class="label">${myPicks} pick${myPicks === 1 ? '' : 's'} left · cap room ${money(L.capRoom(S, S.user))}</span></div>
+      <div class="needs">${groups.map((g) => `<button class="need ${g.need ? 'hot' : ''}" data-pos="${g.pos}"><b>${GI.POS[g.pos].label}</b><span>${g.low}</span>${g.need ? '<i>NEED</i>' : ''}</button>`).join('')}</div>
+      <p class="muted" style="font-size:12.5px;margin:8px 0 0">Three rounds. A pick who beats your weakest starter takes his spot; everyone else joins the bench (up to 5). Undrafted rookies fill out the bench when it's over.</p></div>`;
+  }
+  function startsTag(p) {
+    const r = S.rosters[S.user];
+    const here = r.stars.filter((c) => c.pos === p.pos).sort((a, b) => a.rating - b.rating);
+    const mid = Math.round((p.est[0] + p.est[1]) / 2);
+    const d = here.length ? mid - here[0].rating : 99;
+    return d > 0 ? `<i class="starts">STARTS +${d > 50 ? '' : d}</i>` : '<i class="starts depth">DEPTH</i>';
   }
   function showProspect(pid) {
     const p = S.draft.pool.find((x) => x.id === pid);
@@ -333,7 +445,8 @@
         <div class="pc-big"><span class="label">Potential</span><b>${p.gradeShown}</b><small>${p.sparkShown ? '⚡ Breakthrough spark spotted' : 'Ceiling estimate'}</small></div></div>
       ${bar('Clutch', p.clutch, fuzz(p.clutch))}${bar('Durability', p.dur, fuzz(p.dur))}${bar('Ego', p.ego, fuzz(p.ego))}
       ${(p.traits || []).length ? `<div class="traits">${traitChips(p)}</div>` : ''}
-      <p class="muted" style="font-size:13px">${p.rookie ? `Rookie contract: 3 years at ${money(p.salary)}/yr.` : `Contract: ${money(p.salary)}/yr.`} ${slot === 'bench' ? 'He would join as your <b>backup star</b> — his contract only starts when he plays.' : ''} Show-Me move: <b>${GI.SHOWME[p.pos].name}</b>.</p>
+      <p class="muted" style="font-size:13px">${p.rookie ? `Rookie contract: 3 years at ${money(p.salary)}/yr.` : `Contract: ${money(p.salary)}/yr.`} ${S.rosters[S.user].v === 1 ? '' : (slot === 'bench' ? 'He would join as your <b>backup star</b> — his contract only starts when he plays.' : '') + ` Show-Me move: <b>${GI.SHOWME[p.pos].name}</b>.`}</p>
+      ${S.rosters[S.user].v === 1 ? `<p class="muted" style="font-size:13px">Archetype: <b>${esc(GI.dev.archetype(p))}</b>. ${startsTag(p).includes('STARTS') ? 'He would step into your starting lineup.' : 'He would join your bench and develop.'}</p>` : ''}
       ${yourTurn ? (chk.ok ? `<button class="btn green block" id="pdPick">Draft ${esc(p.name.split(' ').pop())} ▶</button>` : `<p class="pill red" style="text-transform:none">${chk.why}</p>`) : '<p class="muted">Wait for your pick.</p>'}`, (s) => {
       s.querySelector('#mx').onclick = closeModal;
       const b = s.querySelector('#pdPick'); if (b) b.onclick = () => { closeModal(); doDraft(p.id); };
@@ -350,7 +463,102 @@
   }
 
   // ================= ROSTER =================
+  // ---------- v1: the roster as cards ----------
+  function renderCardRoster() {
+    const r = S.rosters[S.user], ut = T(S.user), team = SN.teamObj(S, S.user);
+    const tc = Object.assign({}, ut, GI.legacy.jersey(ut));
+    const inj = {};
+    SN.injuredFor(S, S.user).forEach(({ s, weeks, holdout }) => (inj[s.id] = holdout ? 'Holdout' : weeks >= 6 ? 'Out for season' : `Out ${weeks}w`));
+    const u = GI.ratings(team);
+    const order = { QB: 0, RB: 1, WR: 2, TE: 3, OL: 4, DL: 5, LB: 6, CB: 7, S: 8, KP: 9 };
+    const sorted = (l) => l.slice().sort((a, b) => order[a.pos] - order[b.pos] || b.rating - a.rating);
+    const grp = (title, list, bench) => list.length ? `<div class="cgroup"><h3>${title}</h3><div class="cgrid">${sorted(list).map((c) => U.cardHTML(c, tc, { id: true, hurt: inj[c.id], bench, imp: impOf(r, c) })).join('')}</div></div>` : '';
+    const off = r.stars.filter((c) => GI.POS[c.pos].side === 'O'), def = r.stars.filter((c) => GI.POS[c.pos].side === 'D'), st = r.stars.filter((c) => GI.POS[c.pos].side === 'ST');
+    const bench = (r.benchList || []).concat(r.bench ? [r.bench] : []);
+    const UN = [['Passing', 'pass'], ['Running', 'run'], ['O-line', 'ol'], ['Pass D', 'passD'], ['Run D', 'runD'], ['Pass rush', 'rush'], ['Kicking', 'st']];
+    $('#rosterBody').innerHTML = `<div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="roBack">←</button><h2>${esc(ut.name)} Roster</h2><span class="cashpill">${u.ovr} OVR</span></div>
+      <div class="sticker panel"><div class="row between"><span class="label">${r.stars.length}/16 starters · ${bench.length} bench</span><span class="label">Payroll ${money(SN.salaryTotal(S, S.user))} of ${money(S.cap)}</span></div>
+        <div class="units">${UN.map(([n, k]) => `<div class="un"><span>${n}</span><i><b style="width:${Math.max(4, (u[k] - 40) / 59 * 100)}%"></b></i><em>${u[k]}</em></div>`).join('')}</div>
+        <p class="muted" style="font-size:12.5px;margin:8px 0 0">Tap a card for its stats, contract and story. Cards rated 90+ become Star Players with a Show-Me meter.</p></div>
+      ${grp('Offense', off)}${grp('Defense', def)}${grp('Special teams', st)}${grp('Bench', bench, true)}
+      <div class="sticker panel"><h3>Staff</h3><div class="coach">${['hc', 'oc', 'dc', 'stc'].map((k) => { const c = r.coaches[k]; return `<div><span class="muted" style="font-size:11px">${c.role}</span><b>${esc(c.name)}</b>${c.rating} rtg${c.style ? ' · ' + (GI.OC_STYLES[c.style] || GI.DC_STYLES[c.style]) : ''}</div>`; }).join('')}</div></div>`;
+    $('#roBack').onclick = () => { renderHub(); show('hub'); };
+    $$('#rosterBody [data-card]').forEach((b) => (b.onclick = () => cardDetail(b.dataset.card)));
+  }
+  const impOf = (r, c) => (GI.impact ? { tier: GI.impact.tierOf(r, c), captain: GI.impact.isCaptain(r, c) } : null);
+  // ---------- the Locker Room: captains and Impact Cards ----------
+  function lockerHTML() {
+    const r = S.rosters[S.user];
+    if (r.v !== 1 || !GI.impact) return '';
+    const IM = GI.impact, ut = T(S.user), tc = Object.assign({}, ut, GI.legacy.jersey(ut));
+    const slots = IM.slots(r);
+    return `<div class="sticker panel locker"><div class="row between"><h3>${GI.ico('spark')} Impact Cards</h3><span class="pill gold">${S.ip || 0} IP</span></div>
+      <div class="ichips">${slots.length ? slots.map((c) => U.impChip(c, r, { tc })).join('') : '<p class="muted" style="margin:0;font-size:13px">No cards yet. Players earn one at 80 overall — and your two captains carry one at any rating.</p>'}</div>
+      <button class="btn ghost small block" id="hubLocker" style="margin-top:10px">Locker Room · captains & upgrades</button></div>`;
+  }
+  function openLocker() {
+    const keep = $('#modal').classList.contains('on') ? $('#sheet').scrollTop : 0;
+    setTimeout(() => { if (keep) $('#sheet').scrollTop = keep; }, 0);
+    if (S.guide && !S.guide.done.locker) { S.guide.done.locker = true; SN.save(S); }
+    const r = S.rosters[S.user], IM = GI.impact, ut = T(S.user), tc = Object.assign({}, ut, GI.legacy.jersey(ut));
+    const all = SN.allStars(S, S.user);
+    const slots = IM.slots(r).map((c) => c.id);
+    const cards = all.filter((c) => IM.eligible(r, c)).sort((a, b) => IM.tierOf(r, b) - IM.tierOf(r, a) || b.rating - a.rating);
+    const close = all.filter((c) => !IM.eligible(r, c) && IM.sideOf(c.pos) && c.rating >= 74).sort((a, b) => b.rating - a.rating).slice(0, 4);
+    const capRow = (sd) => {
+      const cur = all.find((c) => c.id === (r.captains || {})[sd]);
+      const opts = r.stars.filter((c) => IM.sideOf(c.pos) === sd && !c.unit).sort((a, b) => b.rating - a.rating);
+      return `<div class="caprow"><span class="label">${sd === 'o' ? 'Offense' : 'Defense'} captain</span><select data-cap="${sd}">${opts.map((c) => `<option value="${esc(c.id)}" ${cur && cur.id === c.id ? 'selected' : ''}>${GI.POS[c.pos].label} ${esc(c.name)} (${c.rating})${(c.traits || []).includes('leader') ? ' · Leader' : ''}</option>`).join('')}</select></div>`;
+    };
+    const pips = (c) => { const t = IM.tierOf(r, c), cp = IM.cap(r, c); return `<span class="pips">${[1, 2, 3, 4].map((k) => `<i class="${k <= t ? 'on t-' + IM.keyOf(k) : k > cp ? 'lock' : ''}"></i>`).join('')}</span>`; };
+    const row = (c) => {
+      const cost = IM.upgradeCost(r, c), t = IM.tierOf(r, c), inS = slots.includes(c.id);
+      const nextName = IM.nameOf((c.imp || 0) + 1);
+      return `<div class="lrow">${U.impChip(c, r, { tc })}
+        <div class="lr-side">${pips(c)}
+          ${cost != null ? `<button class="btn ${S.ip >= cost ? 'gold' : 'ghost'} tiny" data-up="${esc(c.id)}" ${S.ip >= cost ? '' : 'disabled'}>${nextName} · ${cost} IP</button>` : `<span class="muted tiny">${t >= 4 ? 'Maxed' : `Cap: ${IM.nameOf(IM.cap(r, c))}`}</span>`}
+          ${inS ? '<span class="pill green tiny">Bringing</span>' : `<button class="btn ghost tiny" data-bring="${esc(c.id)}">Bring</button>`}</div></div>`;
+    };
+    modal(`<div class="row between"><h2>Locker Room</h2>${closeBtn}</div>
+      <p class="muted" style="margin-top:-4px;font-size:13px">An Impact Card belongs to its player: it raises the odds a play succeeds when he's part of it (Bronze +5%, Silver +10%, Gold +15%, Elite +20%). Bring ${IM.SLOTS} to every game; each fires ${IM.USES} times. Players earn a card at ${IM.MIN_RATING} overall. <b>Captains</b> carry one at any rating, and their cap is one tier higher. Earn Impact Points by playing: a win is 2, a loss 1, a playoff win 3, a title 5.</p>
+      <div class="row between" style="margin:6px 0 10px"><span class="label">Your Impact Points</span><span class="pill gold">${S.ip || 0} IP</span></div>
+      ${capRow('o')}${capRow('d')}
+      <h3 style="margin:14px 0 6px">Cards</h3>${cards.length ? cards.map(row).join('') : '<p class="muted">No cards yet.</p>'}
+      ${close.length ? `<h3 style="margin:14px 0 6px">Close to a card</h3>${close.map((c) => `<div class="lrow dim"><span>${GI.POS[c.pos].label} ${esc(c.name)}</span><span class="muted tiny">${IM.MIN_RATING - c.rating} more overall</span></div>`).join('')}` : ''}
+      <p class="muted" style="font-size:12px;margin-top:10px">Card caps by rating: under 70 Bronze, 70s Silver, 80s Gold, 90+ Elite. Trade or lose a player and his card goes with him.</p>`, (m) => {
+      m.querySelector('#mx').onclick = () => { closeModal(); renderHub(); };
+      m.querySelectorAll('[data-cap]').forEach((sel) => (sel.onchange = () => { SN.setCaptain(S, sel.dataset.cap, sel.value); sfx('select'); openLocker(); }));
+      m.querySelectorAll('[data-up]').forEach((b) => (b.onclick = () => {
+        const c = all.find((x) => x.id === b.dataset.up);
+        const t = SN.impUpgrade(S, b.dataset.up);
+        if (t) { sfx('star'); toast(`${GI.shortName(c.name)}'s card is now ${GI.impact.nameOf(t)}`, 1500); openLocker(); }
+      }));
+      m.querySelectorAll('[data-bring]').forEach((b) => (b.onclick = () => { SN.setImpSlots(S, [b.dataset.bring].concat(slots)); sfx('select'); openLocker(); }));
+    });
+  }
+  function cardDetail(id) {
+    const s = SN.allStars(S, S.user).find((x) => x.id === id); if (!s) return;
+    const ut = T(S.user), tc = Object.assign({}, ut, GI.legacy.jersey(ut));
+    const ss = S.sstats[s.id], c = s.career || {};
+    modal(`<div class="row between"><h2>${esc(s.name)}</h2>${closeBtn}</div>
+      <div class="cdetail">${U.cardHTML(s, tc)}<div class="cd-info">
+        <p><b>${GI.POS[s.pos].full}</b>${s.unit ? ' · a unit of ' + (s.pos === 'OL' ? 5 : 4) + ' linemen' : s.num != null ? ' · #' + s.num : ''}</p>
+        <p class="muted">Age ${s.age} · potential ${SN.grade(s.pot)} (${s.pot}) · ${s.yrsPro ? s.yrsPro + (s.yrsPro === 1 ? ' yr pro' : ' yrs pro') : 'rookie'}</p>
+        <p class="muted">${money(s.contract.salary)}/yr · ${s.contract.years} yr${s.contract.years === 1 ? '' : 's'} left</p>
+        ${(s.traits || []).length ? `<div class="traits">${traitChips(s)}</div>` : ''}
+        <p><span class="label">This season</span><br>${ss ? L.statLine(ss) : 'No stats yet'}</p>
+        <p><span class="label">Career</span><br>${c.seasons ? L.statLine(c) : 'First season'}</p>
+        ${GI.impact && GI.impact.sideOf(s.pos) ? (() => { const r = S.rosters[S.user], t = GI.impact.tierOf(r, s); return t ? `<p class="kicktip ok">${GI.ico('spark')} Impact Card: <b>${GI.impact.MOVE[s.pos]}</b> · ${GI.impact.nameOf(t)} +${GI.impact.pctOf(t)}% on ${GI.impact.FIT_WORD[s.pos]}${GI.impact.isCaptain(r, s) ? ' · Captain' : ''}</p>` : `<p class="muted" style="font-size:12.5px">${GI.impact.MIN_RATING - s.rating} more overall to earn an Impact Card (or make him a captain).</p>`; })() : ''}
+        ${GI.dev.canBreak(s) && !s.star ? `<p class="muted" style="font-size:12.5px">⚡ Breakthrough odds at spring training: <b>${breakOdds(s)}%</b>${s.invest ? ` · ${s.invest} weeks of extra reps` : ' · extra reps raise them'}${s.breaks ? ` · ${s.breaks} breakthrough${s.breaks > 1 ? 's' : ''} so far` : ''}</p>` : ''}
+        ${s.star ? `<p class="kicktip ok">★ Star Player: ${GI.SHOWME[s.pos].name} — ${GI.SHOWME[s.pos].desc}</p>` : `<p class="muted" style="font-size:12.5px">${90 - s.rating} more overall to become a Star Player.</p>`}
+      </div></div>
+      <button class="btn ghost small block" id="cdRel" style="margin-top:12px">Release</button>`, (m) => {
+      m.querySelector('#mx').onclick = closeModal;
+      m.querySelector('#cdRel').onclick = () => confirmBox(`Release ${esc(s.name)}?`, `He becomes a free agent. You stop paying his ${money(s.contract.salary)}/yr — and he'll remember who cut him.`, 'Release', 'Keep him', () => { SN.release(S, s.id); renderRoster(); }, true);
+    });
+  }
   function renderRoster() {
+    if (S.rosters[S.user].v === 1) { renderCardRoster(); return; }
     const r = S.rosters[S.user], ut = T(S.user);
     const inj = {};
     SN.injuredFor(S, S.user).forEach(({ s, weeks, holdout }) => (inj[s.id] = holdout ? 'H' + weeks : weeks));
@@ -435,7 +643,7 @@
           <div class="ctr"><button class="btn green small" data-rs="${s.id}" data-y="1">1 yr</button><button class="btn green small" data-rs="${s.id}" data-y="2">2 yrs</button><button class="btn green small" data-rs="${s.id}" data-y="3">3 yrs</button><button class="btn ghost small" data-let="${s.id}">Let go</button></div></div>`).join('')
         : `<div class="sticker panel"><p class="muted" style="margin:0">${S.phase === 'offseason' ? 'All contracts are settled.' : 'Contract decisions happen in the offseason. Rookie deals last 3 years. Underpaid stars may demand a new deal mid-season.'}</p></div>`;
     } else if (officeTab === 'fa') body = faHTML();
-    $('#officeBody').innerHTML = `<div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="ofBack">←</button><h2>Front Office</h2><span class="cashpill">💰 ${money(S.cash)}</span></div>
+    $('#officeBody').innerHTML = `<div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="ofBack">←</button><h2>Front Office</h2><span class="cashpill">${GI.ico('coin')} ${money(S.cash)}</span></div>
       <div class="postabs" id="ofTabs">${tabs.map(([k, n]) => `<button data-v="${k}" class="${k === officeTab ? 'on' : ''}">${n}${k === 'contracts' && (S.expiring || []).length ? ' •' : ''}${k === 'fa' && S.phase === 'offseason' && !S.faDone ? ' •' : ''}</button>`).join('')}</div>${body}`;
     $('#ofBack').onclick = () => { renderHub(); show('hub'); };
     $$('#ofTabs button').forEach((b) => (b.onclick = () => { officeTab = b.dataset.v; renderOffice(); }));

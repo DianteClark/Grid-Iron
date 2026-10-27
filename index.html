@@ -32,20 +32,20 @@
       </div>
       <div class="menu">
         <div id="seasonCard"></div>
-        <div id="careerCard"></div>
         <button class="btn gold block" id="btnResume" hidden>▶ Resume Game</button>
         <button class="btn block" id="btnSeason">New Franchise</button>
-        <div class="menu-duo"><button class="btn green" id="btnCareer">Career Mode</button><button class="btn ghost" id="btnQuick">Quick Game</button></div>
-        <p class="dailychip" id="dailyChip">⭐ First win today earns <b>+5 Legacy Points</b></p>
+        <button class="btn ghost block" id="btnQuick">Exhibition</button>
+        <button class="btn ghost block" id="btnFriends"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.5A5 5 0 0 1 21 19"/></svg> Friends &amp; Challenges</button>
+        <p class="dailychip" id="dailyChip">First win today earns <b>+5 Legacy Points</b></p>
         <div class="menu2">
-          <button class="btn ghost small" id="btnTrophies">🏆 Legacy <span class="lpb" id="lpBadge">0</span></button>
-          <button class="btn ghost small" id="btnAlbum">📒 Album</button>
-          <button class="btn ghost small" id="btnStore">🛍️ Store</button>
+          <button class="btn ghost small" id="btnTrophies"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4"/></svg> Legacy <span class="lpb" id="lpBadge">0</span></button>
+          <button class="btn ghost small" id="btnAlbum"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v18M12 8h4M12 12h4"/></svg> Cards</button>
+          <button class="btn ghost small" id="btnStore"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg> Store</button>
           <button class="btn ghost small" id="btnHelp">How to Play</button>
-          <button class="btn ghost small" id="btnSettings">⚙ Settings</button>
+          <button class="btn ghost small" id="btnSettings"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg> Settings</button>
         </div>
       </div>
-      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.7 · Home Field · Add to your Home Screen to play like an app</p>
+      <p class="muted" style="text-align:center;font-size:12px;margin:0">v1.0 · Big Plays · Add to your Home Screen to play like an app</p>
     </div>
   </section>
 
@@ -76,9 +76,9 @@
   <section class="screen" id="records"><div class="wrap stack" id="recordsBody" style="max-width:720px"></div></section>
   <section class="screen" id="tables"><div class="wrap stack" id="tablesBody" style="max-width:720px"></div></section>
 
-  <!-- LEGACY & CAREER -->
+  <!-- LEGACY -->
+  <section class="screen" id="friends"><div class="wrap stack" id="friendsBody" style="max-width:620px"></div></section>
   <section class="screen" id="legacy"><div class="wrap stack" id="legacyBody" style="max-width:720px"></div></section>
-  <section class="screen" id="career"><div class="wrap stack" id="careerBody" style="max-width:620px"></div></section>
 
   <!-- HIGHLIGHT REEL -->
   <section class="screen" id="reel">
@@ -101,6 +101,7 @@
       <div id="pgMods" class="stack"></div>
       <div class="sticker panel" id="pgMode"></div>
       <div class="conds" id="pgConds"></div>
+      <div class="sticker panel" id="pgEff"></div>
       <div class="sticker bars" id="pgBars"></div>
       <div class="sticker panel" id="pgPotw"></div>
       <div class="sticker panel" id="pgScout"></div>
@@ -133,14 +134,6 @@
     </nav>
   </section>
 
-  <!-- CAREER GAME (key moments) -->
-  <section class="screen" id="cgame">
-    <div class="fieldwrap"><canvas id="cfield" aria-label="Football field"></canvas><div id="cbanner"></div></div>
-    <header class="scorebar sticker csb" id="csb"></header>
-    <button class="iconbtn cgquit" id="cgQuit" aria-label="Leave game">✕</button>
-    <div class="psheet sticker" id="psheet2"><div id="cpanel"></div></div>
-  </section>
-
   <!-- FINAL -->
   <section class="screen" id="final">
     <div class="wrap stack" id="finalBody" style="max-width:520px"></div>
@@ -150,18 +143,25 @@
 <div class="modal" id="modal"><div class="sticker sheet" id="sheet"></div></div>
 
 <script src="js/data.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/playbook.js"></script>
 <script src="js/stadium.js"></script>
 <script src="js/sim.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/dev.js"></script>
+<script src="js/impact.js"></script>
+<script src="js/share.js"></script>
+<script src="js/rating.js"></script>
 <script src="js/crests.js"></script>
 <script src="js/season.js"></script>
 <script src="js/league.js"></script>
 <script src="js/legacy.js"></script>
-<script src="js/career.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/anim.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/ui-franchise.js"></script>
 <script src="js/ui-extra.js"></script>
+<script src="js/ui-social.js"></script>
 <script>
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

@@ -30,7 +30,31 @@
     LB: { runD: 5, passD: 2 }, S: { passD: 4, runD: 2 }, CB: { passD: 6 }, DL: { rush: 6, runD: 3 }, KP: { st: 14 },
   };
 
+  // v1: every team is a lineup of 16 player cards (see cards.js), rated 64–74 to start
   GI.buildTeam = function (i) {
+    if (GI.cards) return buildCardTeam(i);
+    return buildStarTeam(i);
+  };
+  function buildCardTeam(i) {
+    const [city, name, abbr, c1, c2] = GI.TEAMS_BASE[i];
+    const r = GI.mulberry32(9001 + i * 7919);
+    const rr = (a, b) => a + Math.floor(r() * (b - a + 1));
+    const pick = (arr) => arr[Math.floor(r() * arr.length)];
+    const target = 63 + rr(0, 9);
+    const stars = GI.cards.assignRoles(GI.cards.lineup(target, r));
+    stars.forEach((c, k) => (c.id = abbr + k));
+    const cname = () => pick(GI.FIRST) + ' ' + pick(GI.COACH_LAST);
+    const coaches = {
+      hc: { role: 'Head Coach', name: cname(), rating: rr(58, 88) },
+      oc: { role: 'Offensive Coord.', name: cname(), rating: rr(55, 86), style: pick(['run', 'pass', 'balanced', 'balanced', 'gadget']) },
+      dc: { role: 'Defensive Coord.', name: cname(), rating: rr(55, 86), style: pick(['blitz', 'cover', 'press', 'balanced', 'balanced']) },
+      stc: { role: 'Special Teams', name: cname(), rating: rr(52, 84) },
+    };
+    const team = { v: 1, idx: i, city, name, abbr, c1, c2, slots: stars.map((c) => c.pos), stars, benchList: [], base: {}, coaches };
+    team.ovr = GI.ratings(team).ovr;
+    return team;
+  }
+  function buildStarTeam(i) {
     const [city, name, abbr, c1, c2] = GI.TEAMS_BASE[i];
     const r = GI.mulberry32(9001 + i * 7919);
     const rr = (a, b) => a + Math.floor(r() * (b - a + 1));
@@ -84,11 +108,12 @@
     const team = { idx: i, city, name, abbr, c1, c2, slots, stars, base, coaches };
     team.ovr = GI.ratings(team).ovr;
     return team;
-  };
+  }
 
   // ---------- dynamic (franchise) rosters ----------
   GI.ROLE_MAP = ROLE_MAP; GI.NUMS = NUMS;
   GI.assignRoles = function (stars) {
+    if (GI.cards && stars.some((s) => s.stats)) return GI.cards.assignRoles(stars);
     const use = {};
     const order = ['KP', 'QB', 'RB', 'WR', 'TE', 'OL', 'LB', 'DL', 'S', 'CB'];
     stars.slice().sort((a, b) => order.indexOf(a.pos) - order.indexOf(b.pos) || b.rating - a.rating).forEach((s) => {
@@ -109,12 +134,18 @@
     });
     GI.assignRoles(stars);
     const team = { idx: i, city, name, abbr, c1, c2, glyph: id.glyph || (GI.TEAM_GLYPH ? GI.TEAM_GLYPH[i] : null), slots: stars.map((s) => s.pos), stars: stars.filter((s) => s.role), base: Object.assign({}, data.base), coaches: JSON.parse(JSON.stringify(data.coaches)), identity: data.identity || null, college: !!id.college };
+    if (stars.some((s) => s.stats)) {
+      team.v = 1; team.fromData = true; team.benchList = (data.benchList || []).map((b) => Object.assign({}, b, { injured: false, armed: false }));
+      if (data.captains) team.captains = Object.assign({}, data.captains);
+      if (data.impSlots) team.impSlots = data.impSlots.slice();
+    }
     if (data.bench) team.bench = Object.assign({}, data.bench, { meter: ri(10, 30), armed: false, injured: false });
     team.ovr = GI.ratings(team).ovr;
     return team;
   };
 
   GI.ratings = function (team) {
+    if (team.v === 1 && GI.cards) return GI.cards.units(team);
     const r = Object.assign({}, team.base);
     team.stars.forEach((s) => {
       if (s.injured) return;
@@ -129,7 +160,10 @@
   GI.TEAMS = GI.TEAMS_BASE.map((_, i) => GI.buildTeam(i));
 
   GI.shortName = (n) => { const p = n.split(' '); return p[0][0] + '. ' + p.slice(1).join(' '); };
-  GI.starAt = (team, role) => team.stars.find((s) => s.role === role && !s.injured);
+  GI.starAt = (team, role) => { const r = GI.unitRole ? GI.unitRole(role) : role; return team.stars.find((s) => s.role === r && !s.injured); };
+  // v1: only Star Players (90+) carry a Show-Me meter; older star teams: everyone does
+  const hasMeter = (t, s) => t.v !== 1 || s.star;
+  GI.hasMeter = hasMeter;
   const GENERIC = { QB: 'the QB', RB: 'the RB', WR1: 'the X receiver', WR2: 'the Z receiver', WR3: 'the slot', TE: 'the tight end', MLB: 'the Mike', WLB: 'the Will', SLB: 'the Sam', FS: 'the free safety', SS: 'the strong safety', CB1: 'the corner', CB2: 'the corner', DE1: 'the end', DE2: 'the end', DT1: 'the tackle', DT2: 'the tackle', K: 'the kicker', KR: 'the returner' };
   GI.who = function (team, role) {
     const s = GI.starAt(team, role);
@@ -151,7 +185,10 @@
     let crowd = GI.CROWD[ri(0, GI.CROWD.length - 1)];
     if (o.crowdLevel != null) crowd = GI.CROWD.reduce((b, c) => (Math.abs(c.level - o.crowdLevel) < Math.abs(b.level - o.crowdLevel) ? c : b));
     const mk = (idx) => (o.teamData && o.teamData[idx] ? GI.makeTeam(idx, o.teamData[idx]) : GI.buildTeam(idx));
-    const teams = { home: mk(homeIdx), away: mk(awayIdx) };
+    // friend games: either side can come straight from a team code (or your franchise)
+    const mkU = () => (o.userData ? GI.makeTeam(o.user, o.userData) : mk(o.user));
+    const mkO = () => { const t = o.oppData ? GI.makeTeam(o.opp, o.oppData) : mk(o.opp); if (o.oppData && o.oppIdx != null) t.idx = o.oppIdx; return t; };
+    const teams = o.userHome ? { home: mkU(), away: mkO() } : { home: mkO(), away: mkU() };
     const inj = new Set(o.injured || []);
     const benchUsed = [];
     ['home', 'away'].forEach((s) => {
@@ -168,26 +205,28 @@
         }
       }
       t.stars = t.stars.filter((st) => st.role);
+      if (t.v === 1 && GI.impact && !t.captains) { if (t.fromData) { GI.impact.autoCaptains(t); GI.impact.grant(t); GI.impact.slots(t); } else GI.impact.autoTeam(t); }
     });
     if (o.starMeter) ['home', 'away'].forEach((s) => teams[s].stars.forEach((st) => { if (o.starMeter[st.id] != null) st.meter = o.starMeter[st.id]; }));
     const morale = {};
     ['home', 'away'].forEach((s) => (morale[s] = clamp(55 + (teams[s].coaches.hc.rating - 70) / 2 + ri(-5, 5) + ((o.morale && o.morale[s]) || 0), 20, 95)));
-    const potwPick = () => ({ off: GI.OFF_PLAYS[ri(0, 4)].id, def: GI.DEF_PLAYS[ri(0, 5)].id });
+    const potwPick = () => ({ off: GI.OFF_PLAYS[ri(0, GI.OFF_PLAYS.length - 1)].id, def: GI.DEF_PLAYS[ri(0, GI.DEF_PLAYS.length - 1)].id });
     const firstRecv = R() < 0.5 ? 'home' : 'away';
     const G = {
       v: 1, user: o.userHome ? 'home' : 'away', teams, score: { home: 0, away: 0 },
       q: 1, qLen: o.qMin * 60, clock: o.qMin * 60, poss: firstRecv, ballOn: 25, down: 1, toGo: 10,
       phase: 'kickoff', kickTeam: other(firstRecv), freeKick: false, firstRecv,
-      weather, crowd, diff: o.diff || 'pro', potw: o.potw || { off: 'short', def: 'zone' },
+      weather, crowd, diff: o.diff || 'pro', potw: { off: GI.toPlay((o.potw || {}).off, 'off'), def: GI.toPlay((o.potw || {}).def, 'def') },
       morale, stats: { home: mkStats(), away: mkStats() }, log: [], hist: { off: [], def: [] },
       pending: null, flash: null, over: false, ot: false, playNo: 0,
-      potwLeft: { off: 3, def: 3 }, cpuPotw: o.cpuPotw || potwPick(), cpuPotwLeft: { off: 3, def: 3 },
-      playoff: !!o.playoff, intel: o.intel || null, film: !!o.film, label: o.label || null, benchUsed,
+      potwLeft: { off: 3, def: 3 }, cpuPotw: o.cpuPotw ? { off: GI.toPlay(o.cpuPotw.off, 'off'), def: GI.toPlay(o.cpuPotw.def, 'def') } : potwPick(), cpuPotwLeft: { off: 3, def: 3 },
+      playoff: !!o.playoff, intel: o.intel || null, film: !!o.film, label: o.label || null, benchUsed, friend: o.friend || null,
       // v0.5: clock management, momentum, adjustments, per-star stats, scouting the CPU
       to: { home: 3, away: 3 }, runoff: 0, twoMin: {}, hurry: { home: false, away: false }, mom: 0, adj: { home: null, away: null },
       ps: {}, cpuLog: [], drive: { plays: 0, side: firstRecv }, rivalry: o.rivalry || null, book: o.book || null, brokeRec: {},
       career: o.career || null, keyMode: !!o.keyMode, quick: !!o.quick, hurtIds: o.hurt || [], careerBase: o.careerBase || null,
-      venue, neutral: !!venue.neutral, roofNote: roof.note, outside: rolled, flow: [],
+      venue, neutral: !!venue.neutral, roofNote: roof.note, outside: rolled, flow: [], effExtra: o.effExtra || null,
+      imp: GI.impact ? { home: GI.impact.forGame(teams.home), away: GI.impact.forGame(teams.away) } : null, impArm: { home: null, away: null },
     };
     if (o.potwLeft) G.potwLeft = Object.assign({}, o.potwLeft);
     G.edge = buildEdges(G, o.edges || {});
@@ -460,8 +499,13 @@
   // ---------- CPU brains ----------
   // how hard the CPU leans on your tendencies (softened in v0.5 — it was out-reading players and winning
   // the snaps that fill meters). You get the same read on it via the tendency strip.
-  const ADAPT = { rookie: 0, pro: 4, legend: 8, sim: 4 };
-  const DIFF_ADV = { rookie: -0.5, pro: -0.12, legend: 0.25, sim: 0 };
+  const ADAPT = { rookie: 0, pro: 4, legend: 8, sim: 0 }; // sim: CPU vs CPU — neither side reads the other
+  // v1 balance knobs (tuned by simulation: see the design doc's win-rate targets)
+  // measured on v1 card teams (300-game runs, tools/balance.js): +5 wins ~73%, +10 ~79%, +20 ~88%,
+  // ~16.5 points per team; a perfect play-caller (who somehow knows every CPU call) 20 points worse wins ~24%
+  GI.BAL = GI.BAL || { talent: 0.09, knee: 10, call: 0.32, potw: 0.3, noise: 0.4, off: 0.4, boom: 0.08 };
+  // v1: difficulty is mostly how smart the CPU is (ADAPT); this per-snap nudge stays small so talent still decides
+  const DIFF_ADV = { rookie: -0.2, pro: 0, legend: 0.12, sim: 0 };
   function cpuFourth(G) {
     if (G.down !== 4 || G.twoPt) return null;
     const diff = G.score[G.poss] - G.score[other(G.poss)];
@@ -478,8 +522,9 @@
   function cpuOffCall(G) {
     const w = cpuOffWeights(G, true);
     // a CPU star sitting on fire nudges it toward a play where he can go off
-    const hot = G.teams[G.poss].stars.filter((s) => !s.injured && s.meter >= 100 && GI.SHOWME[s.pos].o);
-    hot.forEach((s) => GI.SHOWME[s.pos].o.forEach((c) => { if (w[c] != null) w[c] *= 1.35; }));
+    const hot = G.teams[G.poss].stars.filter((s) => !s.injured && s.meter >= 100 && GI.SHOWME[s.pos].o && GI.hasMeter(G.teams[G.poss], s));
+    hot.forEach((s) => { for (const c in w) if (GI.SHOWME[s.pos].o.includes(GI.baseOf(c))) w[c] *= 1.35; });
+    if (G.poss !== G.user && G.cpuPotw && w[G.cpuPotw.off] != null) w[G.cpuPotw.off] *= 2.2; // their go-to play
     return wpick(w);
   }
   function cpuShouldKneel(G, side) {
@@ -490,7 +535,18 @@
     return G.clock <= 38 * snapsLeft - oppTO * 34 + 4 && G.clock <= 160;
   }
   GI.cpuShouldKneel = cpuShouldKneel;
+  // v1: the coordinator thinks in families (run inside, run outside, short, long, trick), then picks a play
   function cpuOffWeights(G, adapt) {
+    const t = G.teams[G.poss];
+    const bw = cpuOffBase(G);
+    const w = GI.spreadOff ? GI.spreadOff(bw, t.coaches.oc.style) : bw;
+    if (adapt) {
+      const k = ADAPT[G.diff];
+      G.hist.def.slice(0, 6).forEach((d) => { for (const o in w) if (GI.matrixOf(o, d) === 2) w[o] += k / 2; });
+    }
+    return w;
+  }
+  function cpuOffBase(G) {
     const t = G.teams[G.poss];
     const w = { in_run: 22, out_run: 18, short: 28, long: 16, trick: 4 };
     const st = t.coaches.oc.style;
@@ -506,15 +562,13 @@
     if (G.ballOn >= 85) { w.long *= 0.5; w.short *= 1.2; }
     const idn = t.identity && GI.IDENTITIES[t.identity];
     if (idn) for (const c in idn.calls) if (w[c] != null) w[c] *= 1.25;
-    if (adapt) {
-      const k = ADAPT[G.diff];
-      G.hist.def.slice(0, 6).forEach((d) => {
-        for (const o in GI.MATRIX) if (GI.MATRIX[o][d] === 2) w[o] += k;
-      });
-    }
     return w;
   }
-  function cpuDefCall(G) { return wpick(cpuDefWeights(G, true)); }
+  function cpuDefCall(G) {
+    const w = cpuDefWeights(G, true);
+    if (G.poss === G.user && G.cpuPotw && w[G.cpuPotw.def] != null) w[G.cpuPotw.def] *= 2.2;
+    return wpick(w);
+  }
   // tendencies the user can scout: base situational weights (no adaptation, no randomness)
   GI.tendency = function (G) {
     const userOff = G.poss === G.user;
@@ -523,6 +577,17 @@
     return Object.keys(w).map((k) => ({ id: k, p: Math.round((w[k] / tot) * 100) })).sort((a, b) => b.p - a.p);
   };
   function cpuDefWeights(G, adapt) {
+    const t = G.teams[other(G.poss)];
+    const bw = cpuDefBase(G);
+    const w = GI.spreadDef ? GI.spreadDef(bw, t.coaches.dc.style) : bw;
+    if (adapt) {
+      const k = ADAPT[G.diff];
+      G.hist.off.slice(0, 6).forEach((o) => { const c = GI.counterOf(o); if (w[c] != null) w[c] += k; });
+      if (G.film && G.diff !== 'rookie') { const c = GI.counterOf(G.potw.off); if (w[c] != null) w[c] += 12; } // they studied your Play of the Week
+    }
+    return w;
+  }
+  function cpuDefBase(G) {
     const t = G.teams[other(G.poss)];
     const w = { man: 18, zone: 22, deep: 14, press: 14, blitz_in: 14, blitz_out: 14 };
     if (G.ballOn >= 85) { w.deep *= 0.5; w.press *= 1.3; w.blitz_in *= 1.2; }
@@ -534,18 +599,13 @@
     if (st === 'press') { w.press *= 1.7; w.man *= 1.5; }
     if (G.toGo >= 8) { w.deep *= 1.8; w.zone *= 1.4; }
     if (G.toGo <= 2) { w.blitz_in *= 1.8; w.blitz_out *= 1.4; w.deep *= 0.4; }
-    if (adapt) {
-      const k = ADAPT[G.diff];
-      G.hist.off.slice(0, 6).forEach((o) => { w[GI.counterOf(o)] += k; });
-      if (G.film && G.diff !== 'rookie') w[GI.counterOf(G.potw.off)] += 12; // they studied your Play of the Week
-    }
     return w;
   }
   function armCpu(G, side, kind, call) {
     G.teams[side].stars.forEach((s) => {
       if (s.injured || s.armed || s.meter < 100) return;
       const sm = GI.SHOWME[s.pos];
-      if (kind === 'o' && sm.o && call && sm.o.includes(call)) s.armed = true;
+      if (kind === 'o' && sm.o && call && sm.o.includes(GI.baseOf(call))) s.armed = true;
       else if (kind === 'o' && !call && s.pos === 'KP') s.armed = true;
       else if (kind === 'd' && sm.d && R() < 0.55) s.armed = true;
     });
@@ -602,7 +662,7 @@
       if (s.injured || s.armed || s.meter < 100) return;
       const sm = GI.SHOWME[s.pos];
       let go = false;
-      if (act.type === 'play' && act.call && userOff && sm.o && sm.o.includes(act.call)) go = true;
+      if (act.type === 'play' && act.call && userOff && sm.o && sm.o.includes(GI.baseOf(act.call))) go = true;
       if (act.type === 'play' && act.call && !userOff && sm.d) go = true;
       if ((act.special === 'fg' || act.special === 'punt' || act.type === 'pat') && s.pos === 'KP') go = true;
       let kick = false;
@@ -681,7 +741,6 @@
     if (v.surface !== 'grass') { if (off === 'out_run') a += 0.08; if (off === 'long') a += 0.05; }
     if (v.surface === 'blue' && P === 'away') a -= 0.04;
     if (v.surface === 'grass' && (G.weather === 'rain' || G.weather === 'snow') && isRun) a -= 0.05;
-    if (v.climate === 'alpine' && v.roof === 'open' && P === 'away' && G.q >= 4) a -= 0.08;
     return a;
   }
 
@@ -777,17 +836,19 @@
   }
 
   // ---------- scrimmage ----------
-  function doScrimmage(G, off, def) {
+  function doScrimmage(G, call, dcall) {
+    const off = GI.baseOf(call), def = GI.baseOf(dcall);
+    const play = GI.playOf ? GI.playOf(call) : null;
     const P = G.poss, D = other(P);
     const ot = G.teams[P], dt = G.teams[D];
     const ro = GI.ratings(ot), rd = GI.ratings(dt);
     const W = GI.WEATHER[G.weather];
     const isRun = off === 'in_run' || off === 'out_run';
     const isPass = off === 'short' || off === 'long';
-    const res = { off, def, side: P, ...frame(G, P), start: G.ballOn, down: G.down, toGo: G.toGo };
-    const matrix = GI.MATRIX[off][def];
+    const res = { off, def, call, dcall, form: play && play.form, side: P, ...frame(G, P), start: G.ballOn, down: G.down, toGo: G.toGo };
+    const matrix = GI.matrixOf ? GI.matrixOf(call, dcall) : GI.MATRIX[off][def];
     res.matrix = matrix;
-    res.reason = GI.REASON[off + '|' + def] || null;
+    res.reason = GI.REASON[call + '|' + dcall] || (Math.abs(matrix) === 2 ? null : GI.REASON[off + '|' + def]) || null;
     const adjP = G.adj[P], adjD = G.adj[D];
     const lateHalf = (G.q === 2 && G.clock <= 120) || (G.q >= 4 && G.clock <= 300);
 
@@ -804,23 +865,27 @@
       return res;
     }
 
-    let a = matrix;
+    // v1: talent first. The call nudges, the effective-rating gap decides.
+    const BAL = GI.BAL;
+    let a = matrix * BAL.call;
+    const fP = GI.effRating(G, P), fD = GI.effRating(G, D);
+    res.eff = { off: fP.eff, def: fD.eff };
     const unit = isRun ? ro.run * 0.6 + ro.ol * 0.4 - (rd.runD * 0.7 + rd.rush * 0.3)
       : isPass ? ro.pass * 0.65 + ro.ol * 0.35 - (rd.passD * 0.65 + rd.rush * 0.35)
         : (ro.pass + ro.run) / 2 - (rd.passD + rd.runD) / 2;
-    a += unit / 16;
-    a += (ot.coaches.oc.rating - dt.coaches.dc.rating) / 45;
+    // a concave curve: the first few points of edge matter most, a huge gap is "very likely", not "certain"
+    const tg = unit + fP.d.off - fD.d.def;
+    a += (BAL.knee ? tg / (1 + Math.abs(tg) / BAL.knee) : tg) * BAL.talent;
     res.potw = false;
     // Play of the Week: only a few reps per game
-    if (P === G.user && off === G.potw.off && G.potwLeft.off > 0) { a += 0.7; G.potwLeft.off--; res.potw = 'off'; }
-    if (D === G.user && def === G.potw.def && G.potwLeft.def > 0) { a -= 0.7; G.potwLeft.def--; res.potw = 'def'; }
-    if (P !== G.user && off === G.cpuPotw.off && G.cpuPotwLeft.off > 0) { a += 0.7; G.cpuPotwLeft.off--; res.cpuPotw = 'off'; }
-    if (D !== G.user && def === G.cpuPotw.def && G.cpuPotwLeft.def > 0) { a -= 0.7; G.cpuPotwLeft.def--; res.cpuPotw = 'def'; }
+    if (P === G.user && call === G.potw.off && G.potwLeft.off > 0) { a += BAL.potw; G.potwLeft.off--; res.potw = 'off'; }
+    if (D === G.user && dcall === G.potw.def && G.potwLeft.def > 0) { a -= BAL.potw; G.potwLeft.def--; res.potw = 'def'; }
+    if (P !== G.user && call === G.cpuPotw.off && G.cpuPotwLeft.off > 0) { a += BAL.potw; G.cpuPotwLeft.off--; res.cpuPotw = 'off'; }
+    if (D !== G.user && dcall === G.cpuPotw.def && G.cpuPotwLeft.def > 0) { a -= BAL.potw; G.cpuPotwLeft.def--; res.cpuPotw = 'def'; }
     // predictable: same call 3+ snaps in a row gets read by the defense / offense
     const runOf = (h, c) => { let n = 0; for (const x of h) { if (x === c) n++; else break; } return n; };
-    if (P === G.user) { const n = runOf(G.hist.off, off); if (n >= 3) { a -= n >= 4 ? 0.9 : 0.5; res.predictable = true; } }
-    if (D === G.user) { const n = runOf(G.hist.def, def); if (n >= 3) { a += n >= 4 ? 0.9 : 0.5; res.predictable = true; } }
-    a += (G.morale[P] - G.morale[D]) / 150;
+    if (P === G.user) { const n = runOf(G.hist.off, call); if (n >= 3) { a -= (n >= 4 ? 0.9 : 0.5) * BAL.call; res.predictable = true; } }
+    if (D === G.user) { const n = runOf(G.hist.def, dcall); if (n >= 3) { a += (n >= 4 ? 0.9 : 0.5) * BAL.call; res.predictable = true; } }
     // momentum: whoever has it plays a little faster
     a += (momFor(G, P) / 100) * 0.18;
     // situational football: down, distance and field position
@@ -847,11 +912,17 @@
     if (off === 'long') a += W.long;
     if (isRun) a += W.run;
     if (off === 'trick') a += W.pass * 0.5;
-    if (P === 'away') a -= (crowdEff(G) / 100) * 0.25;
     a += venueAdv(G, P, off, isRun);
     if (G.weather === 'heat' && G.q >= 4) a += (ro.ovr - rd.ovr) / 40;
     a += (P === G.user ? -1 : 1) * DIFF_ADV[G.diff];
-    a += gauss(0, 0.35);
+    a += BAL.off || 0; // v1: a small league-wide lean to the offense (no more Show-Me fireworks on every roster)
+    // Impact Cards: a player's card fires on a snap he's part of
+    if (GI.impact && G.imp && !G.twoPt) {
+      const ip = GI.impact.onSnap(G, P, D, off);
+      if (ip.fired.length) { a += ip.a; res.impact = ip.fired; ip.fired.forEach((f) => { if (f.captain) swing(G, f.side, 4); }); }
+    }
+    if (GI.BAL.testA) a += GI.BAL.testA;
+    a += gauss(0, BAL.noise);
     a = clamp(a, -4, 4);
     res.adv = a;
 
@@ -862,7 +933,7 @@
       let best = null;
       const duo = G.duo && G.duo[side];
       team.stars.forEach((s) => {
-        if (s.injured) return;
+        if (s.injured || !hasMeter(team, s)) return;
         const list = GI.SHOWME[s.pos][sideKey];
         if (!list || !list.includes(off)) return;
         if (s.armed) armedUsed.push(s);
@@ -1001,6 +1072,15 @@
         else { o.kind = 'sack'; o.yards = -ri(3, 9); o.by = pickDef(['DE1', 'DE2', 'MLB', 'WLB']); }
       }
     }
+    // v1 breakaways: speed in the open field turns a good play into a big one (no meter needed)
+    if (!crazy && BAL.boom && ((o.kind === 'run' && o.yards >= 3) || (o.kind === 'pass' && !o.fumble))) {
+      const carrier = o.kind === 'run' ? GI.starAt(ot, 'RB') : GI.starAt(ot, o.target);
+      const spd = carrier ? (carrier.stats && carrier.stats.spd) || carrier.rating : 65;
+      if (R() < BAL.boom * (1 + Math.max(-0.6, a) * 0.35) * (spd / 75)) {
+        if (o.kind === 'run') o.yards += ri(12, 45); else o.yac = (o.yac || 0) + ri(12, 45);
+        o.boom = true;
+      }
+    }
     Object.assign(res, o);
     if (res.kind === 'pass' && res.target === 'RB' && res.air > 12) res.air = ri(2, 8);
 
@@ -1117,6 +1197,16 @@
         if (credit(G, P, 'RB', 'car')) { credit(G, P, 'RB', 'ryd', gain); if (res.td) credit(G, P, 'RB', 'rtd'); }
       } else if (res.kind === 'sack' && res.by) credit(G, D, res.by, 'sk');
       if (res.kind === 'incomplete' && res.breakup && res.by) credit(G, D, res.by, 'pd');
+      // longest plays of the game (for the franchise's longest-ever and the share cards)
+      if ((res.kind === 'pass' || res.kind === 'run') && gain > 0) {
+        G.long = G.long || { home: {}, away: {} };
+        const lk = res.kind, cur = G.long[P][lk];
+        if (!cur || gain > cur.yds) {
+          const who = lk === 'pass' ? GI.starAt(G.teams[P], res.target === 'RB' ? 'RB' : res.target) : GI.starAt(G.teams[P], 'RB');
+          const qb = lk === 'pass' ? GI.starAt(G.teams[P], 'QB') : null;
+          G.long[P][lk] = { yds: gain, td: !!res.td, name: who ? who.name : null, pos: who ? who.pos : null, num: who ? who.num : null, qb: qb ? qb.name : null };
+        }
+      }
       if ((res.kind === 'run' || res.kind === 'pass') && !res.td) {
         const tk = res.by && gain <= 2 ? res.by : pickDef(gain > 12 ? ['FS', 'SS', 'CB1', 'CB2'] : ['MLB', 'WLB', 'SLB', 'SS', 'DT1', 'DE1', 'CB1']);
         credit(G, D, tk, 'tkl');
@@ -1132,7 +1222,7 @@
       res.banner = { title: 'STAR CLASH!', sub: `${c.o} vs ${c.d} — ${c.winner} wins it`, tone: c.winSide === G.user ? 'good' : 'bad', star: true, clash: true, after: res.crazy ? res.crazy.title.toUpperCase() + (res.td ? ' — TD!' : '!') : null };
       txt = `⚔️ STAR CLASH: ${c.o} vs ${c.d}, ${c.winner} wins! ` + txt.replace(/^★ [^!]*! /, '');
     }
-    res.text = `${offName}: ${GI.playName(off)} vs ${GI.playName(def)} — ${txt}`;
+    res.text = `${offName}: ${GI.playName(call)} vs ${GI.playName(dcall)} — ${txt}`;
     // clock: the play runs now; the time until the next snap is held as "runoff"
     tick(G, playTime, P);
     if (stop || G.twoMinStop) G.runoff = 0;
@@ -1164,7 +1254,7 @@
       mult *= 1 + Math.max(0, momFor(G, side)) / 500;
       if (G.adj[side] === 'tempo') mult *= 1.15;
       t.stars.forEach((s) => {
-        if (s.injured) return;
+        if (s.injured || !hasMeter(t, s)) return;
         // only stars who were actually on the field this snap
         if (side === P && !OFFP.includes(s.pos)) return;
         if (side === D && !DEFP.includes(s.pos)) return;
@@ -1462,7 +1552,7 @@
   };
   GI.simGame = function (homeIdx, awayIdx, opts) {
     const o = Object.assign({ qMin: 8, diff: 'pro' }, opts || {});
-    const G = GI.newGame(Object.assign({}, o, { user: homeIdx, opp: awayIdx, userHome: true, potw: { off: GI.OFF_PLAYS[ri(0, 4)].id, def: GI.DEF_PLAYS[ri(0, 5)].id } }));
+    const G = GI.newGame(Object.assign({}, o, { user: homeIdx, opp: awayIdx, userHome: true, potw: { off: GI.OFF_PLAYS[ri(0, GI.OFF_PLAYS.length - 1)].id, def: GI.DEF_PLAYS[ri(0, GI.DEF_PLAYS.length - 1)].id } }));
     G.diff = 'sim';
     GI.finishAuto(G);
     return G;
@@ -1476,7 +1566,14 @@
   // ---------- save / load ----------
   const KEY = 'gridiron_save_v1';
   GI.save = (G) => { try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {} };
-  GI.load = () => { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } };
+  GI.load = () => {
+    try {
+      const s = localStorage.getItem(KEY); if (!s) return null;
+      const G = JSON.parse(s);
+      if (G && G.potw && GI.toPlay) { G.potw = { off: GI.toPlay(G.potw.off, 'off'), def: GI.toPlay(G.potw.def, 'def') }; if (G.cpuPotw) G.cpuPotw = { off: GI.toPlay(G.cpuPotw.off, 'off'), def: GI.toPlay(G.cpuPotw.def, 'def') }; }
+      return G;
+    } catch (e) { return null; }
+  };
   GI.clearSave = () => { try { localStorage.removeItem(KEY); } catch (e) {} };
   GI.prefs = {
     get() { try { return JSON.parse(localStorage.getItem('gridiron_prefs') || '{}'); } catch (e) { return {}; } },

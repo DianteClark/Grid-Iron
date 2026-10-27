@@ -96,12 +96,14 @@
   GI.crestSVG = function (t, cls, opts) {
     opts = opts || {};
     const id = 'cr' + (++uid);
-    const c1 = t.c1, c2 = t.c2;
+    const hex = (c, d) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : d);
+    const c1 = hex(t.c1, '#3a4766'), c2 = hex(t.c2, '#ffffff');
     const ink = GI.inkOn(c1);
+    const e = (x) => String(x == null ? '' : x).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     const glyph = t.glyph || GI.TEAM_GLYPH[t.idx] || 'hat';
     const ribbon = opts.ribbon !== false;
-    const label = (t.abbr || '').slice(0, 4);
-    return `<svg class="crest ${cls || ''}" viewBox="0 0 120 ${ribbon ? 126 : 128}" role="img" aria-label="${t.city || ''} ${t.name || ''} crest">
+    const label = e((t.abbr || '').slice(0, 4));
+    return `<svg class="crest ${cls || ''}" viewBox="0 0 120 ${ribbon ? 126 : 128}" role="img" aria-label="${e(t.city)} ${e(t.name)} crest">
       <defs><clipPath id="${id}"><path d="${SHIELD}"></path></clipPath></defs>
       <path d="${SHIELD}" transform="translate(4 5)" fill="#000" opacity=".2"></path>
       <path d="${SHIELD}" fill="#fff" stroke="#fff" stroke-width="12" stroke-linejoin="round"></path>

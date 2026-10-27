@@ -62,6 +62,9 @@
 
   const SFX = {
     tap: () => tone(880, 0.05, 'triangle', 0.08),
+    impact: () => { const t = ctx.currentTime; [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 'triangle', 0.11, t + i * 0.055)); swell(0.18, 0.5); },
+    theirImpact: () => { const t = ctx.currentTime; [392, 330, 262].forEach((f, i) => tone(f, 0.18, 'sawtooth', 0.05, t + i * 0.07)); },
+    card: () => { const t = ctx.currentTime; tone(1175, 0.1, 'sine', 0.1, t); tone(1568, 0.22, 'sine', 0.09, t + 0.08); },
     select: () => { tone(660, 0.06, 'triangle', 0.1); tone(990, 0.08, 'triangle', 0.08, ctx.currentTime + 0.05); },
     snap: () => { noise(0.07, 0.35, 'lowpass', 500); tone(120, 0.08, 'sine', 0.3); },
     hit: () => { noise(0.16, 0.55, 'lowpass', 700); tone(80, 0.14, 'sine', 0.45, null, 45); },
