@@ -55,6 +55,11 @@
   GI.TEAM_GLYPH = ['hat', 'anvil', 'peaks', 'bridge', 'wave', 'comet', 'twister', 'scorpion', 'snake', 'fox', 'sun', 'cactus', 'horseshoe', 'notes', 'fish', 'bull', 'moon', 'axes', 'lighthouse', 'paw', 'dice', 'chevrons', 'pickaxe', 'summit', 'lasso', 'foot', 'arch', 'derrick', 'aurora', 'crystal', 'ghost', 'wings'];
 
   const lum = (h) => { const n = parseInt(h.slice(1), 16); return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+  GI.mixHex = (a, b, t) => {
+    const p = (h) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16));
+    const x = p(a), y = p(b);
+    return '#' + x.map((v, k) => Math.round(v + (y[k] - v) * t).toString(16).padStart(2, '0')).join('');
+  };
   GI.inkOn = (bg) => (lum(bg) > 0.62 ? '#1d1d1f' : '#ffffff');
 
   // glyph as SVG elements (100x100 box)

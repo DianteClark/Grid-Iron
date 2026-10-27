@@ -36,6 +36,7 @@
         <button class="btn gold block" id="btnResume" hidden>▶ Resume Game</button>
         <button class="btn block" id="btnSeason">New Franchise</button>
         <div class="menu-duo"><button class="btn green" id="btnCareer">Career Mode</button><button class="btn ghost" id="btnQuick">Quick Game</button></div>
+        <p class="dailychip" id="dailyChip">⭐ First win today earns <b>+5 Legacy Points</b></p>
         <div class="menu2">
           <button class="btn ghost small" id="btnTrophies">🏆 Legacy <span class="lpb" id="lpBadge">0</span></button>
           <button class="btn ghost small" id="btnAlbum">📒 Album</button>
@@ -44,20 +45,23 @@
           <button class="btn ghost small" id="btnSettings">⚙ Settings</button>
         </div>
       </div>
-      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.6 · Prime Time · Add to your Home Screen to play like an app</p>
+      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.7 · Home Field · Add to your Home Screen to play like an app</p>
     </div>
   </section>
 
   <!-- TEAM PICK -->
   <section class="screen" id="pick">
     <div class="wrap">
-      <div class="topbar"><button class="iconbtn" id="pickBack" aria-label="Back">←</button><h2 id="pickTitle">Pick your team</h2></div>
+      <div class="topbar"><button class="iconbtn" id="pickBack" aria-label="Back">←</button><h2 id="pickTitle">Pick your team</h2><button class="btn ghost small" id="pickSurprise" data-only-quick>🎲 Surprise me</button></div>
+      <div class="stepper2" id="pickSteps"></div>
       <div class="sticker settings" id="settings">
         <div class="row" data-only="season"><span class="label">Season</span><div class="seg" data-set="weeks"><button data-v="8">8 wks</button><button data-v="12" class="on">12 wks</button><button data-v="17">17 wks</button></div></div>
-        <div class="row" data-only="quick"><span class="label">Venue</span><div class="seg" data-set="home"><button data-v="1" class="on">Home</button><button data-v="0">Away</button></div></div>
+        <div class="row" data-only="quick"><span class="label">Venue</span><div class="seg" data-set="venue"><button data-v="home" class="on">Home</button><button data-v="away">Away</button><button data-v="neutral">Neutral</button><button data-v="random">🎲</button></div></div>
+        <div class="row" data-only="quick"><span class="label">Weather</span><div class="seg wx" data-set="weather"><button data-v="auto" class="on" title="Based on the stadium and season">Auto</button><button data-v="random" title="Random">🎲</button><button data-v="clear" title="Clear">☀️</button><button data-v="rain" title="Rain">🌧️</button><button data-v="snow" title="Snow">❄️</button><button data-v="wind" title="Wind">💨</button><button data-v="heat" title="Heat">🔥</button></div></div>
         <div class="row"><span class="label">Quarters</span><div class="seg" data-set="qMin"><button data-v="5" class="on">5 min</button><button data-v="8">8 min</button><button data-v="15">15 min</button></div></div>
         <div class="row"><span class="label">Level</span><div class="seg" data-set="diff"><button data-v="rookie">Rookie</button><button data-v="pro" class="on">Pro</button><button data-v="legend">Legend</button></div></div>
       </div>
+      <div class="postabs" id="pickSort"></div>
       <div class="teams" id="teamGrid"></div>
     </div>
     <div class="dock" id="pickDock" hidden><button class="btn gold" id="pickNext">Next</button></div>
@@ -146,6 +150,7 @@
 <div class="modal" id="modal"><div class="sticker sheet" id="sheet"></div></div>
 
 <script src="js/data.js"></script>
+<script src="js/stadium.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/crests.js"></script>
 <script src="js/season.js"></script>
@@ -160,6 +165,9 @@
 <script>
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    // a new version took over: tell the player once
+    let hadCtl = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadCtl && window.GI && GI.UI) GI.UI.toast('✨ Grid Iron updated to the latest version', 2600); hadCtl = true; });
   }
 </script>
 </body>

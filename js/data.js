@@ -141,6 +141,8 @@
       blackout: { name: 'Blackout', cost: 60, desc: 'All black, trim in your color' },
       gold: { name: 'Gold Rush', cost: 80, desc: 'Champion gold' },
       ice: { name: 'Ice', cost: 60, desc: 'Arctic white' },
+      rush: { name: 'Color Rush', cost: 50, desc: 'Head to toe in your main color' },
+      heritage: { name: 'Heritage', cost: 0, desc: 'Vintage wool look. Unlocked by finishing that team\'s album page', special: true },
     },
     field: {
       classic: { name: 'Classic Turf', cost: 0, desc: 'Fresh-cut stripes' },
@@ -154,6 +156,19 @@
       fireworks: { name: 'Fireworks', cost: 50, desc: 'Sparks fly on every score' },
       stickers: { name: 'Sticker Storm', cost: 60, desc: 'Stars and crests rain down' },
       goldrain: { name: 'Gold Rain', cost: 80, desc: 'A shower of gold' },
+    },
+    ball: {
+      classic: { name: 'Game Ball', cost: 0, desc: 'Pebbled leather, white laces' },
+      white: { name: 'All-Star White', cost: 30, desc: 'The exhibition ball' },
+      gold: { name: 'Golden Ball', cost: 60, desc: 'For the ones who win it all' },
+      neon: { name: 'Neon', cost: 50, desc: 'Glows when it flies' },
+    },
+    board: {
+      prime: { name: 'Prime Time', cost: 0, desc: 'Green game clock' },
+      gold: { name: 'Gold Standard', cost: 40, desc: 'Gold clock and trim' },
+      ice: { name: 'Ice Blue', cost: 30, desc: 'Cool blue clock' },
+      crimson: { name: 'Crimson', cost: 30, desc: 'Red-hot clock' },
+      royal: { name: 'Royal', cost: 30, desc: 'Purple clock' },
     },
   };
   // flexible star slot limits (on-field room)
@@ -198,6 +213,7 @@
     snow:  { name: 'Snow', icon: '❄️', pass: -0.6, long: -0.4, run: -0.2, fum: 1.4, kick: -4, desc: 'Slow footing, short kicks' },
     wind:  { name: 'Windy', icon: '💨', pass: -0.1, long: -0.8, run: 0, fum: 1, kick: -6, desc: 'Deep balls and kicks get knocked down' },
     heat:  { name: 'Scorcher', icon: '🔥', pass: 0, long: 0, run: 0, fum: 1.1, kick: 1, desc: 'Players tire late; meters fill faster' },
+    dome:  { name: 'Indoors', icon: '🏟️', pass: 0.05, long: 0.05, run: 0, fum: 0.9, kick: 2, desc: 'Perfect conditions under the roof — and it gets loud' },
   };
   GI.CROWD = [
     { name: 'Half Empty', level: 20 },

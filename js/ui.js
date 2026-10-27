@@ -11,7 +11,7 @@
   let G = null, S = null, field = null, busy = false, autoTimer = null;
   const P = GI.prefs.get();
   const pref = (k, d) => { const v = GI.prefs.get()[k]; return v === undefined ? d : v; };
-  const setup = { mode: 'quick', home: P.home !== undefined ? P.home : true, qMin: P.qMin || 5, diff: P.diff || 'pro', weeks: P.weeks || 12, user: P.user != null ? P.user : null, opp: null, step: 'user' };
+  const setup = { mode: 'quick', venue: P.venue || (P.home === false ? 'away' : 'home'), weather: P.weather || 'auto', qMin: P.qMin || 5, diff: P.diff || 'pro', weeks: P.weeks || 12, user: P.user != null ? P.user : null, opp: null, step: 'user' };
   let speedIdx = P.speedIdx || 0;
   const SPEEDS = [1, 2, 99], SPEED_LABEL = ['1×', '2×', '⏭'];
   const ord = (n) => ['', '1st', '2nd', '3rd', '4th'][n] || n + 'th';
@@ -53,22 +53,30 @@
 
   // ---------- screens / overlays ----------
   function show(id) {
+    const prev = $('.screen.on');
+    if (prev && prev.id !== id) toastQ.length = 0; // stale news from the last screen
     $$('.screen').forEach((s) => s.classList.toggle('on', s.id === id));
+    wakeOn(id === 'game' || id === 'cgame');
+    if (field) { field.calm = !!pref('calm', false); field.highContrast = !!pref('hiLines', false); }
     closePop();
     if (id === 'game') {
       if (field) requestAnimationFrame(() => { field.resize(); updateInsets(); });
-      GI.audio.scene('game', G ? G.crowd.level : 0);
+      GI.audio.scene('game', G ? Math.min(100, G.crowd.level + (G.venue && G.weather === 'dome' ? 12 : 0)) : 0);
     } else if (id === 'cgame') GI.audio.scene('game', 60);
     else GI.audio.scene('menu');
     const el = $('#' + id); if (el) el.scrollTop = 0;
     if (id !== 'game' && id !== 'cgame' && id !== 'paper') setTimeout(flushRewards, 400);
   }
+  // toasts queue up instead of stomping on each other (max 3 waiting)
+  const toastQ = []; let toastOn = false;
   function toast(msg, ms) {
-    $$('.toast').forEach((t) => t.remove());
+    if (toastOn) { if (toastQ.length < 5 && !toastQ.some((q) => q[0] === msg)) toastQ.push([msg, ms]); return; }
+    toastOn = true;
     const t = document.createElement('div');
-    t.className = 'toast'; t.textContent = msg;
+    t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status');
     document.body.appendChild(t);
-    setTimeout(() => t.remove(), ms || 2200);
+    const dur = toastQ.length ? Math.min(ms || 2200, 1500) : ms || 2200;
+    setTimeout(() => { t.remove(); toastOn = false; const n = toastQ.shift(); if (n) toast(n[0], n[1]); }, dur);
   }
   // Legacy Points & new stickers: a little celebration when you get back to a menu
   let rewardBusy = false;
@@ -94,7 +102,70 @@
   }
   function closeModal() { $('#modal').classList.remove('on'); delete $('#modal').dataset.lock; }
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal' && !$('#modal').dataset.lock) closeModal(); });
-  document.addEventListener('click', (e) => { if (e.target.closest('button')) sfx('tap'); }, true);
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    // a fast double-tap on a navigation button shouldn't fire twice (skipping a screen)
+    if (b.matches('.iconbtn, .scard, #pickNext, #pgBack, #btnKick, #paperNext, #fGazette, #fRematch, #fSwap, #fNew, #fMenu, #hubPlay, #hubSim, #hubAdvance')) {
+      const now = performance.now();
+      if (b._lastTap && now - b._lastTap < 300) { e.stopImmediatePropagation(); e.preventDefault(); return; }
+      b._lastTap = now;
+    }
+    sfx('tap');
+  }, true);
+  // ---------- back: the on-screen ← and the phone's back gesture do the same thing ----------
+  const BACKS = { pick: '#pickBack', pregame: '#pgBack', hub: '#hubBack', draft: '#drBack', roster: '#roBack', office: '#ofBack', trade: '#trBack', records: '#rcBack', tables: '#tbBack', legacy: '#albBack, #lgBack', career: '#crBack', reel: '#reelDone', cgame: '#cgQuit' };
+  function goBack() {
+    if ($('#modal').classList.contains('on')) { if (!$('#modal').dataset.lock) closeModal(); return true; }
+    const cur = $('.screen.on'); if (!cur) return false;
+    if (cur.id === 'game') { showMenu(); return true; }
+    if (cur.id === 'paper') { const b = $('#paperNext'); if (!b.disabled) b.click(); return true; }
+    if (cur.id === 'final') { const b = $('#fGazette') || $('#fMenu'); if (b) b.click(); return true; }
+    const sel = BACKS[cur.id]; if (!sel) return false;
+    const b = sel.split(',').map((x) => $(x.trim())).find((x) => x && x.offsetParent !== null);
+    if (b) { b._lastTap = 0; b.click(); return true; }
+    return false;
+  }
+  GI.goBack = goBack;
+  try {
+    history.replaceState({ gi: 'root' }, '');
+    history.pushState({ gi: 'app' }, '');
+    window.addEventListener('popstate', () => {
+      const cur = $('.screen.on');
+      if (cur && cur.id === 'title' && !$('#modal').classList.contains('on')) { history.back(); return; } // leave the app from the title screen
+      goBack();
+      history.pushState({ gi: 'app' }, '');
+    });
+  } catch (e) {}
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea, select')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Escape') { e.preventDefault(); goBack(); return; }
+    const cur = $('.screen.on'); if (!cur || cur.id !== 'game' || $('#modal').classList.contains('on')) return;
+    const k = e.key.toLowerCase();
+    if (/^[1-9]$/.test(k)) { const bs = $$('#psheet.open #callpanel .play:not([disabled])'); const b = bs[+k - 1]; if (b) { e.preventDefault(); b.click(); } return; }
+    if ((k === ' ' || k === 'enter') && e.target.closest('button, a, [tabindex]')) return; // let focused buttons work
+    if (k === ' ' || k === 'enter') { e.preventDefault(); if (field && field.anim) field.finish(); dismissBanner(); return; }
+    if (k === 's') $('#gbSpeed').click();
+    if (k === 'w') $('#gbCam').click();
+    if (k === 'k') $('#gbKey').click();
+    if (k === 'b') $('#gbStats').click();
+    if (k === 'c') $('#gbTac').click();
+    if (k === 't') { const b = $('#psheet.open [data-act="to"]'); if (b) b.click(); }
+  });
+  // keep the screen awake during games; save if the app gets backgrounded
+  let wake = null;
+  async function wakeOn(on) {
+    try {
+      if (on && !wake && navigator.wakeLock) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => (wake = null)); }
+      else if (!on && wake) { await wake.release(); wake = null; }
+    } catch (e) { wake = null; }
+  }
+  document.addEventListener('visibilitychange', () => {
+    const cur = $('.screen.on');
+    if (document.visibilityState === 'hidden') { if (G && !G.over && cur && cur.id === 'game') GI.save(G); }
+    else if (cur && (cur.id === 'game' || cur.id === 'cgame')) wakeOn(true);
+  });
   const closeBtn = '<button class="iconbtn" id="mx" aria-label="Close">✕</button>';
   const confirmBox = (title, body, yes, no, onYes, danger) => modal(`<h2>${title}</h2><p class="muted">${body}</p><div style="display:grid;gap:10px"><button class="btn ${danger ? 'red' : 'green'} block" id="cf1">${yes}</button><button class="btn ghost block" id="cf2">${no}</button></div>`, (s) => {
     s.querySelector('#cf1').onclick = () => { closeModal(); onYes(); };
@@ -120,6 +191,7 @@
     } else $('#careerCard').innerHTML = '';
     const lp = GI.legacy.get();
     $('#lpBadge').textContent = lp.lp;
+    $('#dailyChip').hidden = lp.daily === new Date().toDateString();
   }
   $('#btnQuick').onclick = () => { setup.mode = 'quick'; setup.step = 'user'; setup.opp = null; renderPick(); show('pick'); };
   $('#btnSeason').onclick = () => {
@@ -138,32 +210,61 @@
   // ---------- team pick ----------
   $$('#settings .seg').forEach((seg) => {
     const key = seg.dataset.set;
-    const cur = key === 'home' ? (setup.home ? '1' : '0') : String(setup[key]);
+    const cur = String(setup[key]);
     seg.querySelectorAll('button').forEach((b) => {
       b.classList.toggle('on', b.dataset.v === cur);
       b.onclick = () => {
         seg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
         const v = b.dataset.v;
-        setup[key] = key === 'home' ? v === '1' : key === 'qMin' || key === 'weeks' ? +v : v;
-        GI.prefs.set({ home: setup.home, qMin: setup.qMin, diff: setup.diff, weeks: setup.weeks });
+        setup[key] = key === 'qMin' || key === 'weeks' ? +v : v;
+        GI.prefs.set({ venue: setup.venue, weather: setup.weather, qMin: setup.qMin, diff: setup.diff, weeks: setup.weeks });
       };
     });
   });
   $('#pickBack').onclick = () => {
-    if (setup.step === 'opp') { setup.step = 'user'; renderPick(); return; }
+    if (setup.step === 'opp') { setup.step = 'user'; renderPick(); $('#pick').scrollTop = 0; return; }
     refreshTitle(); show('title');
+  };
+  const rndTeam = (not) => { let i; do { i = Math.floor(Math.random() * 32); } while (i === not); return i; };
+  function quickOpts(user, opp) {
+    let venue = setup.venue;
+    if (venue === 'random') venue = ['home', 'away', 'neutral'][Math.floor(Math.random() * 3)];
+    let weather = setup.weather;
+    if (weather === 'random') weather = ['clear', 'rain', 'snow', 'wind', 'heat'][Math.floor(Math.random() * 5)];
+    return { user, opp, userHome: venue !== 'away', neutral: venue === 'neutral', weather: weather === 'auto' ? null : weather, weatherPick: weather !== 'auto', qMin: setup.qMin, diff: setup.diff, quick: true };
+  }
+  $('#pickSurprise').onclick = () => {
+    const user = rndTeam(-1), opp = rndTeam(user);
+    const sv = setup.venue, sw = setup.weather;
+    setup.venue = 'random'; setup.weather = 'random';
+    const o = quickOpts(user, opp);
+    setup.venue = sv; setup.weather = sw;
+    toast(`🎲 ${T(user).name} vs ${T(opp).name}`, 1800);
+    startPregame(o);
   };
   function renderPick() {
     const opp = setup.step === 'opp';
     $('#pickTitle').textContent = opp ? 'Pick your opponent' : setup.mode === 'season' ? 'Pick your franchise' : 'Pick your team';
+    $('#pickSurprise').hidden = setup.mode !== 'quick' || opp;
+    $('#pickSteps').innerHTML = setup.mode === 'quick' ? `<span class="${opp ? 'done' : 'on'}">1 · Your team${opp && setup.user != null ? ': ' + (setup.user === -1 ? '🎲 Random' : esc(T(setup.user).name)) : ''}</span><span class="${opp ? 'on' : ''}">2 · Opponent</span>` : '';
+    $('#pickBack').setAttribute('aria-label', opp ? 'Back to your team' : 'Back to menu');
     $('#settings').style.display = opp ? 'none' : '';
     $$('#settings [data-only]').forEach((r) => (r.style.display = r.dataset.only === setup.mode ? '' : 'none'));
     const sel = opp ? setup.opp : setup.user;
+    const sortBy = pref('pickSort', 'az');
+    $('#pickSort').innerHTML = [['az', 'A–Z'], ['ovr', 'Best'], ['dome', '🏟️ Domes'], ['turf', '⚡ Turf']].map(([k, n]) => `<button data-v="${k}" class="${sortBy === k ? 'on' : ''}">${n}</button>`).join('');
+    $$('#pickSort button').forEach((b) => (b.onclick = () => { GI.prefs.set({ pickSort: b.dataset.v }); renderPick(); }));
     let html = '';
-    if (opp || setup.mode === 'season') html += `<button class="tcard ${sel === -1 ? 'sel' : ''}" data-i="-1">${helmet({ c1: '#1d1d1f', c2: '#ffc93c', abbr: '?', city: '', name: 'Random', glyph: 'dice' }, 'md')}<div class="nm">Random<br>${opp ? 'Opponent' : 'Team'}</div></button>`;
-    GI.TEAMS.forEach((t, i) => {
+    html += `<button class="tcard ${sel === -1 ? 'sel' : ''}" data-i="-1">${helmet({ c1: '#1d1d1f', c2: '#ffc93c', abbr: '?', city: '', name: 'Random', glyph: 'dice' }, 'md')}<div class="nm">Random<br>${opp ? 'Opponent' : 'Team'}</div></button>`;
+    let order = GI.TEAMS.map((t, i) => i);
+    if (sortBy === 'ovr' && setup.mode !== 'season') order.sort((a, b) => GI.TEAMS[b].ovr - GI.TEAMS[a].ovr);
+    if (sortBy === 'dome') order = order.filter((i) => GI.STADIUMS[i].roof !== 'open');
+    if (sortBy === 'turf') order = order.filter((i) => GI.STADIUMS[i].surface !== 'grass');
+    order.forEach((i) => {
+      const t = GI.TEAMS[i];
       const dis = opp && i === setup.user;
-      html += `<button class="tcard ${sel === i ? 'sel' : ''} ${dis ? 'dis' : ''}" data-i="${i}">${setup.mode === 'season' ? '' : `<span class="ovr">${t.ovr}</span>`}${helmet(t, 'md')}<div class="nm">${t.city}<br>${t.name}</div></button>`;
+      const V = GI.STADIUMS[i];
+      html += `<button class="tcard ${sel === i ? 'sel' : ''} ${dis ? 'dis' : ''}" data-i="${i}">${setup.mode === 'season' ? '' : `<span class="ovr">${t.ovr}</span>`}${helmet(t, 'md')}<div class="nm">${t.city}<br>${t.name}</div><div class="tv" title="${esc(V.name)}">${GI.ROOFS[V.roof].icon}${V.surface === 'grass' ? '🌱' : '⚡'}</div></button>`;
     });
     $('#teamGrid').innerHTML = html;
     $$('#teamGrid .tcard').forEach((c) => (c.onclick = () => {
@@ -190,14 +291,16 @@
       return;
     }
     if (setup.step === 'user') {
-      GI.prefs.set({ user: setup.user });
+      if (setup.user !== -1) GI.prefs.set({ user: setup.user });
       setup.step = 'opp'; setup.opp = null; renderPick();
       $('#pick').scrollTop = 0;
       return;
     }
+    const user = setup.user === -1 ? rndTeam(setup.opp) : setup.user;
     let opp = setup.opp;
-    if (opp === -1) { do { opp = Math.floor(Math.random() * 32); } while (opp === setup.user); }
-    startPregame({ user: setup.user, opp, userHome: setup.home, qMin: setup.qMin, diff: setup.diff });
+    if (opp === -1) opp = rndTeam(user);
+    if (setup.user === -1) toast(`🎲 You're the ${T(user).city} ${T(user).name}!`, 2000);
+    startPregame(quickOpts(user, opp));
   };
 
   // ================= THE GAZETTE =================
@@ -301,7 +404,7 @@
     const ut = G.teams[G.user], ot = G.teams[other(G.user)];
     const ur = GI.ratings(ut), orr = GI.ratings(ot);
     $('#pgTitle').textContent = G.label || 'Game Day';
-    const side = (t, r, home, flip) => `<div class="side">${helmet(t, 'lg', { flip })}<div class="tn">${t.city}<br>${t.name}</div><div class="row" style="margin-top:8px;gap:6px;justify-content:center;flex-wrap:wrap"><span class="pill">${r.ovr} OVR</span>${pgSeason ? `<span class="pill">${SN.recStr(S.rec[t.idx])}</span>` : ''}<span class="pill ${home ? 'gold' : ''}">${home ? 'HOME' : 'AWAY'}</span></div></div>`;
+    const side = (t, r, home, flip) => `<div class="side">${helmet(t, 'lg', { flip })}<div class="tn">${t.city}<br>${t.name}</div><div class="row" style="margin-top:8px;gap:6px;justify-content:center;flex-wrap:wrap"><span class="pill">${r.ovr} OVR</span>${pgSeason ? `<span class="pill">${SN.recStr(S.rec[t.idx])}</span>` : ''}<span class="pill ${home && !G.neutral ? 'gold' : ''}">${G.neutral ? 'NEUTRAL' : home ? 'HOME' : 'AWAY'}</span></div></div>`;
     $('#pgMatch').innerHTML = side(ut, ur, G.user === 'home') + `<div class="vs">VS</div>` + side(ot, orr, G.user !== 'home', true);
     // matchup storylines: rivalries, revenge, coaching trees, duos, style clashes
     const mine = (G.edge && G.edge[G.user].notes) || [], theirs = (G.edge && G.edge[other(G.user)].notes) || [];
@@ -322,10 +425,14 @@
       G = GI.newGame(o); G.seasonGame = true; renderPregame();
     }));
     const W = GI.WEATHER[G.weather];
-    const homeT = G.teams.home;
+    const homeT = G.teams.home, V = G.venue || GI.venueOf(homeT.idx);
+    const tips = GI.venueTips(V, G.weather);
     $('#pgConds').innerHTML = `
-      <div class="sticker cond"><div class="label">Weather</div><div class="big">${W.icon} ${W.name}</div><div class="muted" style="font-size:12.5px">${W.desc}</div></div>
-      <div class="sticker cond"><div class="label">Crowd</div><div class="big">📣 ${G.crowd.name}</div><div class="muted" style="font-size:12.5px">${G.crowd.level >= 50 ? `Fires up ${homeT.abbr} stars, rattles the road offense` : 'Quiet day. Little home edge.'}</div></div>`;
+      <div class="sticker cond venue"><div class="label">${V.neutral ? 'Neutral site' : esc(homeT.city) + ' · home of the ' + esc(homeT.name)}</div><div class="big">🏟️ ${esc(V.name)}</div>
+        <div class="stadchips"><span class="pill">${GI.ROOFS[V.roof].icon} ${GI.ROOFS[V.roof].name}</span><span class="pill">${GI.SURFACES[V.surface].icon} ${GI.SURFACES[V.surface].name}</span><span class="pill">👥 ${V.cap}k</span></div>
+        ${tips.length ? `<ul class="vtips">${tips.map((t) => `<li>${t}</li>`).join('')}</ul>` : ''}</div>
+      <div class="sticker cond"><div class="label">Weather</div><div class="big">${W.icon} ${W.name}</div><div class="muted" style="font-size:12.5px">${G.roofNote ? esc(G.roofNote) : W.desc}</div></div>
+      <div class="sticker cond"><div class="label">Crowd</div><div class="big">📣 ${G.crowd.name}</div><div class="muted" style="font-size:12.5px">${G.neutral ? 'Split down the middle. No home edge.' : G.crowd.level >= 50 ? `Fires up ${homeT.abbr} stars, rattles the road offense` : 'Quiet day. Little home edge.'}</div></div>`;
     const rows = [['RUN', 'run'], ['PASS', 'pass'], ['LINE', 'ol'], ['RUN D', 'runD'], ['PASS D', 'passD'], ['RUSH', 'rush'], ['ST', 'st']];
     $('#pgBars').innerHTML = `<div class="row between"><span class="label">${ut.abbr}</span><span class="label">Tale of the tape</span><span class="label">${ot.abbr}</span></div>` +
       rows.map(([k, key]) => `<div class="bar"><span class="v">${ur[key]}</span><div class="track l"><div class="fill" style="width:${ur[key]}%;background:${ut.c1}"></div></div><span class="k">${k}</span><div class="track"><div class="fill" style="width:${orr[key]}%;background:${ot.c1}"></div></div><span class="v">${orr[key]}</span></div>`).join('');
@@ -334,7 +441,21 @@
     const ocHint = { run: 'Lean on Blitz In / Blitz Out to stuff the run.', pass: 'Cover Long and Press take away the air game.', gadget: 'Man coverage kills trick plays.', balanced: 'No obvious tell. Mix it up.' }[oc.style];
     const dcHint = { blitz: 'Trick plays and outside runs punish the blitz.', cover: 'Inside runs and short passes eat soft coverage.', press: 'Go deep over the press.', balanced: 'No obvious tell. Watch their tendencies.' }[dc.style];
     const idn = ot.identity && GI.IDENTITIES[ot.identity];
-    $('#pgScout').innerHTML = `<h3>🔎 Scouting ${ot.abbr}</h3>
+    const keys = [];
+    const gap = (a, b) => a - b;
+    const opts = [
+      [gap(ur.pass, orr.passD), `Air it out: your passing game (${ur.pass}) has the edge on their coverage (${orr.passD}).`],
+      [gap(ur.run, orr.runD), `Pound the rock: your run game (${ur.run}) should push around their front (${orr.runD}).`],
+      [gap(ur.passD, orr.pass), `Make them run it: your secondary (${ur.passD}) can take away their passing game.`],
+      [gap(ur.runD, orr.run), `Sell out vs the pass: your run defense (${ur.runD}) can handle their ground game alone.`],
+      [gap(orr.rush, ur.ol), `Get the ball out fast: their pass rush (${orr.rush}) beats your line (${ur.ol}). Short passes and runs.`],
+      [gap(orr.pass, ur.passD), `Danger through the air: their passing game (${orr.pass}) outclasses your coverage. Dial up Cover Long and Press.`],
+    ].sort((a, b) => b[0] - a[0]);
+    opts.filter((x) => x[0] >= 4).slice(0, 2).forEach((x) => keys.push(x[1]));
+    if (!keys.length) keys.push('Dead even on paper. Win the counter-call battle and the turnover margin.');
+    const vt = GI.venueTips(G.venue || GI.venueOf(G.teams.home.idx), G.weather); if (vt[0]) keys.push(vt[0]);
+    $('#pgScout').innerHTML = `<h3>🔑 Keys to the game</h3><ol class="keys">${keys.slice(0, 3).map((k) => `<li>${k}</li>`).join('')}</ol>
+      <h3 style="margin-top:16px">🔎 Scouting ${ot.abbr}</h3>
       <ul class="scout"><li><b>OC ${oc.name}</b> — ${GI.OC_STYLES[oc.style]}. ${ocHint}</li><li><b>DC ${dc.name}</b> — ${GI.DC_STYLES[dc.style]}. ${dcHint}</li>
       ${idn ? `<li><b>Playbook:</b> ${idn.icon} ${idn.name}. ${idn.desc}</li>` : ''}
       ${G.intel ? `<li class="intel">📂 <b>Leaked:</b> their Play of the Week is <b>${GI.playName(G.cpuPotw.off)}</b> on offense and <b>${GI.playName(G.cpuPotw.def)}</b> on defense.</li>` : '<li class="muted">They have their own Play of the Week too. You won\'t know it unless the Gazette gets a leak.</li>'}
@@ -376,7 +497,11 @@
     field.wide = !!GI.prefs.get().wide; field.redraw();
     renderSB.last = null;
     field.setTeams(teamColors(G.teams[G.user]), G.teams[other(G.user)]);
+    if (!G.venue) { const ib = G.playoff && /IRON-BOWL/i.test(G.label || ''); G.venue = ib ? Object.assign({}, GI.NEUTRAL_VENUE) : GI.venueOf(G.teams.home.idx, S); G.neutral = ib; }
+    const mineHome = !G.venue.neutral && G.venue.idx === G.teams[G.user].idx;
+    field.setVenue(G.venue, mineHome ? GI.legacy.equipped('field') : 'classic', G.crowd.level, G.venue.neutral ? null : G.teams.home.idx === G.teams[G.user].idx ? teamColors(G.teams.home) : G.teams.home);
     field.setWeather(G.weather);
+    field.ballSkin = GI.legacy.equipped('ball');
     G.crazyLog = G.crazyLog || {};
     G.reelCands = G.reelCands || [];
     G.potwLeft = G.potwLeft || { off: 3, def: 3 };
@@ -429,7 +554,7 @@
     else if (G.phase === 'kickoff') dd = 'Kickoff';
     else if (G.phase === 'pat') dd = 'Extra point';
     else if (G.twoPt) dd = '2-pt try';
-    else dd = `${ord(G.down)} & ${G.ballOn + G.toGo >= 100 ? 'Goal' : G.toGo} · ${GI.spotLabel(G)}`;
+    else dd = `${ord(G.down)} & ${G.ballOn + G.toGo >= 100 ? 'Goal' : G.toGo} · ${GI.spotLabel(G)}${G.phase === 'play' && G.ballOn >= 80 ? ' <span class="rzpill">RED ZONE</span>' : ''}`;
     const W = GI.WEATHER[G.weather];
     const running = G.runoff > 0 && !G.over;
     const ha = teamColors(G.teams.away), hh = teamColors(G.teams.home);
@@ -437,6 +562,7 @@
     const prev = renderSB.last || {};
     const bumpA = prev.away != null && prev.away !== G.score.away, bumpH = prev.home != null && prev.home !== G.score.home;
     renderSB.last = { away: G.score.away, home: G.score.home };
+    $('#sb').dataset.skin = GI.legacy.equipped('board') || 'prime';
     $('#sb').innerHTML = `<div class="sb-main">${sideHTML('away', 'l')}
       <div class="sb-score"><span class="${bumpA ? 'bump' : ''}">${G.score.away}</span><em>-</em><span class="${bumpH ? 'bump' : ''}">${G.score.home}</span></div>
       ${sideHTML('home', 'r')}
@@ -808,6 +934,7 @@
     } catch (e) { console.error(e); }
     setTicker(res);
     if (res.injury) res.injury.forEach((i) => toast(`🚑 ${G.teams[i.side].abbr} ${GI.POS[i.pos].label} ${i.name} injured — out for the game`, 2800));
+    if (res.driveSum && !G.keyModeSkipping) driveChip(res.driveSum);
     if (res.cooled) res.cooled.forEach((c) => { if (c.side === G.user) toast(`🧊 ${c.name} cooled off after two bad plays`, 2200); });
     const nowFire = G.teams[G.user].stars.filter((s) => !s.injured && s.meter >= 100 && before[s.id] < 100);
     if (nowFire.length) { sfx('fire'); toast(`🔥 ${nowFire.map((s) => GI.shortName(s.name)).join(' & ')} ${nowFire.length > 1 ? 'are' : 'is'} ON FIRE${pref('autoArm', true) ? '' : ' — tap their ring to arm'}`, 2600); tipOnce('rail', true); }
@@ -815,6 +942,15 @@
     busy = false;
     tipOnce('ticker', res.matrix != null);
     next();
+  }
+  function driveChip(d) {
+    $$('.drivechip').forEach((x) => x.remove());
+    const el = document.createElement('div');
+    const good = (d.how === 'Touchdown' || d.how === 'Field goal') === (d.side === G.user);
+    el.className = 'drivechip ' + (good ? 'good' : 'bad');
+    el.innerHTML = `<b>${esc(G.teams[d.side].abbr)} drive</b><span>${d.plays} plays · ${d.yds} yds · ${GI.clockStr(d.secs)}</span><i>${d.how}</i>`;
+    $('#bannerHost').appendChild(el);
+    setTimeout(() => el.remove(), 3200);
   }
   // the reveal: what they called, and why it worked (or didn't)
   function reveal(res) {
@@ -894,7 +1030,7 @@
       let pickAdj = G.adj[G.user] || null;
       const theirs = G.adj[other(G.user)];
       const draw = (s) => {
-        s.innerHTML = `<h2>Halftime</h2><div class="row between" style="margin-bottom:10px"><span class="disp" style="font-size:22px">${G.teams.away.abbr} ${G.score.away} — ${G.score.home} ${G.teams.home.abbr}</span></div>${statsTable()}
+        s.innerHTML = `<h2>Halftime</h2><div class="row between" style="margin-bottom:10px"><span class="disp" style="font-size:22px">${G.teams.away.abbr} ${G.score.away} — ${G.score.home} ${G.teams.home.abbr}</span></div>${statsTable()}<div class="label" style="margin:12px 0 6px">First-half leaders</div>${starLines(G.user)}
           <p class="muted" style="font-size:13.5px">${halftimeQuote()}</p>
           <h3 style="margin:12px 0 4px">📋 Make one adjustment</h3>
           <div class="adjgrid">${Object.keys(GI.ADJUST).map((k) => { const a = GI.ADJUST[k]; return `<button class="adj ${pickAdj === k ? 'on' : ''}" data-adj="${k}"><b>${a.icon} ${a.name}</b><small>${a.desc}</small>${hints[k] ? `<em>✔ ${hints[k]}</em>` : ''}</button>`; }).join('')}</div>
@@ -932,16 +1068,31 @@
       ['home', 'away'].forEach((side) => GI.legacy.collect(G.teams[side].stars.map((s) => ({ key: 'c:' + s.id, name: s.name, pos: s.pos, num: s.num, rating: s.rating, team: G.teams[side].abbr, tname: G.teams[side].name, c1: G.teams[side].c1, c2: G.teams[side].c2, glyph: G.teams[side].glyph || GI.TEAM_GLYPH[G.teams[side].idx], ti: G.teams[side].idx }))));
       if (d > 0 && !G.lpGiven) { G.lpGiven = true; GI.legacy.addLP(G.diff === 'legend' ? 3 : G.diff === 'pro' ? 2 : 1, 'Quick game win'); }
     }
+    if (d > 0 && !G.dailyGiven) { G.dailyGiven = true; GI.legacy.dailyWin(); }
+    // quick-game record with each team
+    let qline = '';
+    if (!season && !G.recCounted) {
+      G.recCounted = true;
+      const qr = Object.assign({}, GI.prefs.get().qrec || {});
+      const k = String(ut.idx), r = Object.assign({ w: 0, l: 0, t: 0, st: 0, best: 0 }, qr[k]);
+      if (d > 0) { r.w++; r.st = Math.max(1, r.st + 1); } else if (d < 0) { r.l++; r.st = Math.min(-1, r.st - 1); } else { r.t++; r.st = 0; }
+      r.best = Math.max(r.best, r.st);
+      qr[k] = r; GI.prefs.set({ qrec: qr });
+      G.qrec = r;
+    }
+    if (!season && G.qrec) { const r = G.qrec; qline = `<p class="qrec">Your ${esc(ut.name)}: <b>${r.w}-${r.l}${r.t ? '-' + r.t : ''}</b>${r.st >= 2 ? ` · 🔥 ${r.st}-game win streak` : r.st <= -2 ? ` · ${-r.st} straight losses` : ''}${r.best >= 3 ? ` · best streak ${r.best}` : ''}</p>`; }
     const recs = (G.records || []).concat(G.milestones || []);
     $('#finalBody').innerHTML = `
       <div class="sticker result"><div class="wl" style="background:${wl[1]}">${wl[0]}</div>
         <div class="fs">${helmet(G.teams.away, 'md')}<span>${G.score.away}</span><span class="muted" style="font-size:28px">—</span><span>${G.score.home}</span>${helmet(G.teams.home, 'md', { flip: true })}</div>
-        <p class="muted" style="margin:14px 0 0">${G.label ? G.label + ' · ' : ''}${G.ot ? 'Final / OT' : 'Final'} · ${GI.WEATHER[G.weather].icon} ${GI.WEATHER[G.weather].name} · ${G.crowd.name} crowd</p></div>
+        <p class="muted" style="margin:14px 0 0">${G.label ? G.label + ' · ' : ''}${G.ot ? 'Final / OT' : 'Final'} · ${G.venue ? esc(G.venue.name) + ' · ' : ''}${GI.WEATHER[G.weather].icon} ${GI.WEATHER[G.weather].name} · ${G.crowd.name} crowd</p>${qline}
+        ${linescore()}</div>
+      ${flowChart()}
       ${mvpStar ? `<div class="sticker panel"><div class="label">Star of the game</div><h3 style="margin:4px 0 0">★ ${mvpStar.name} <span class="muted" style="font-size:15px">${GI.POS[mvpStar.pos].label} #${mvpStar.num}</span></h3>${best ? `<p class="muted" style="margin:4px 0 0">${best} Show-Me play${best > 1 ? 's' : ''}</p>` : ''}</div>` : ''}
       ${recs.length ? `<div class="sticker panel"><h3>📜 History made</h3><ul class="slines">${recs.map((r) => `<li><span class="pp-pos">${r.th ? '🏅' : '📜'}</span><b>${GI.shortName(r.name)}</b><span>${r.th ? `${r.th.toLocaleString()} career ${GI.STAT_NAME[r.key]}` : `record ${r.v} ${GI.STAT_NAME[r.key]}`}</span></li>`).join('')}</ul></div>` : ''}
       <div class="sticker panel"><h3>${ut.abbr} star lines</h3>${starLines(u)}</div>
       <div class="sticker panel">${statsTable()}</div>
-      <div style="display:grid;gap:12px">${season ? '<button class="btn gold block" id="fGazette">📰 Read the Gazette ▶</button>' : '<button class="btn gold block" id="fRematch">Rematch</button><button class="btn block" id="fNew">New Matchup</button><button class="btn ghost block" id="fMenu">Main Menu</button>'}</div>`;
+      <div style="display:grid;gap:12px">${season ? '<button class="btn gold block" id="fGazette">📰 Read the Gazette ▶</button>' : '<div class="menu-duo"><button class="btn gold" id="fRematch">Rematch</button><button class="btn" id="fSwap">Swap sides</button></div><button class="btn block" id="fNew">New Matchup</button><div class="menu-duo"><button class="btn ghost" id="fShare">Share result</button><button class="btn ghost" id="fMenu">Main Menu</button></div>'}</div>`;
     show('final');
     if (season) {
       $('#fGazette').onclick = () => {
@@ -959,9 +1110,47 @@
     }
     GI.clearSave();
     const hi = G.teams[u].idx, oi = G.teams[o].idx;
-    $('#fRematch').onclick = () => { setup.user = hi; startPregame({ user: hi, opp: oi, userHome: setup.home, qMin: setup.qMin, diff: setup.diff }); };
+    $('#fRematch').onclick = () => { setup.user = hi; startPregame(quickOpts(hi, oi)); };
+    $('#fSwap').onclick = () => { setup.user = oi; startPregame(quickOpts(oi, hi)); };
+    $('#fShare').onclick = () => shareResult();
     $('#fNew').onclick = () => { setup.mode = 'quick'; setup.step = 'user'; renderPick(); show('pick'); };
     $('#fMenu').onclick = () => { refreshTitle(); show('title'); };
+  }
+  // ---------- final-screen extras ----------
+  function linescore() {
+    const fl = G.flow || []; if (fl.length < 2 || fl[0].length < 3) return '';
+    const qs = Math.max(4, Math.min(5, G.q));
+    const at = (t) => { let r = [0, 0]; for (const f of fl) { if (f[0] <= t) r = [f[1], f[2]]; else break; } return r; };
+    const cols = []; let prev = [0, 0];
+    for (let q = 1; q <= qs; q++) { const cur = q === qs ? [G.score.home, G.score.away] : at(q * G.qLen); cols.push([cur[0] - prev[0], cur[1] - prev[1]]); prev = cur; }
+    const row = (side, k) => `<tr><th>${esc(G.teams[side].abbr)}</th>${cols.map((c) => `<td>${c[k]}</td>`).join('')}<td class="tot">${G.score[side]}</td></tr>`;
+    return `<table class="lscore"><tr><th></th>${cols.map((_, i) => `<th>${i < 4 ? 'Q' + (i + 1) : 'OT'}</th>`).join('')}<th>T</th></tr>${row('away', 1)}${row('home', 0)}</table>`;
+  }
+  function flowChart() {
+    const fl = (G.flow || []).filter((f) => f.length >= 3); if (fl.length < 4) return '';
+    const W = 320, H = 90, end = Math.max(fl[fl.length - 1][0], G.qLen * 4);
+    const m = fl.map((f) => f[1] - f[2]);
+    const mx = Math.max(7, ...m.map(Math.abs));
+    const X = (t) => (t / end) * W, Y = (v) => H / 2 - (v / mx) * (H / 2 - 6);
+    let d = `M0 ${H / 2}`; fl.forEach((f, i) => { d += ` L${X(f[0]).toFixed(1)} ${Y(m[i]).toFixed(1)}`; });
+    const hc = G.teams.home.c1, ac = G.teams.away.c1;
+    return `<div class="sticker panel"><div class="row between"><h3>📈 Game flow</h3><span class="label">${esc(G.teams.home.abbr)} ▲ · ▼ ${esc(G.teams.away.abbr)}</span></div>
+      <svg class="flow" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Score margin over time">
+        <defs><clipPath id="fUp"><rect width="${W}" height="${H / 2}"/></clipPath><clipPath id="fDn"><rect y="${H / 2}" width="${W}" height="${H / 2}"/></clipPath></defs>
+        ${[1, 2, 3].map((q) => `<line x1="${X(q * G.qLen)}" x2="${X(q * G.qLen)}" y1="0" y2="${H}" stroke="currentColor" stroke-opacity=".12"/>`).join('')}
+        <line x1="0" x2="${W}" y1="${H / 2}" y2="${H / 2}" stroke="currentColor" stroke-opacity=".3"/>
+        <path d="${d} L${W} ${Y(m[m.length - 1])} L${W} ${H / 2} Z" fill="${hc}" fill-opacity=".45" clip-path="url(#fUp)"/>
+        <path d="${d} L${W} ${Y(m[m.length - 1])} L${W} ${H / 2} Z" fill="${ac}" fill-opacity=".45" clip-path="url(#fDn)"/>
+        <path d="${d}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/>
+      </svg></div>`;
+  }
+  async function shareResult() {
+    const u = G.user, o = other(u);
+    const txt = `🏈 Grid Iron: ${G.teams[u].city} ${G.teams[u].name} ${G.score[u]}, ${G.teams[o].city} ${G.teams[o].name} ${G.score[o]}${G.ot ? ' (OT)' : ''} at ${G.venue ? G.venue.name : 'the stadium'} ${GI.WEATHER[G.weather].icon}`;
+    try {
+      if (navigator.share) { await navigator.share({ text: txt }); return; }
+      await navigator.clipboard.writeText(txt); toast('📋 Result copied');
+    } catch (e) { if (e && e.name !== 'AbortError') modal(`<div class="row between"><h2>Share</h2>${closeBtn}</div><textarea class="codebox" readonly>${esc(txt)}</textarea>`, (m) => (m.querySelector('#mx').onclick = closeModal)); }
   }
   function pressConference(pc, done) {
     $('#modal').dataset.lock = '1';
@@ -1001,7 +1190,8 @@
   function showMenu() {
     closePop();
     const userPoss = G.poss === G.user;
-    modal(`<h2>Timeout</h2><div style="display:grid;gap:10px">
+    const V = G.venue;
+    modal(`<h2>Timeout</h2>${V ? `<p class="muted" style="margin:-4px 0 12px;font-size:13px">🏟️ ${esc(V.name)} · ${GI.WEATHER[G.weather].icon} ${GI.WEATHER[G.weather].name} · ${G.crowd.name} crowd · ${GI.qLabel(G.q)} ${GI.clockStr(G.clock)}</p>` : ''}<div style="display:grid;gap:10px">
       <button class="btn gold block" id="m1">Resume</button>
       <div class="menu-sims"><button class="btn ghost small" id="mDrive">⏩ Sim this drive</button><button class="btn ghost small" id="mHalf">⏩ Sim to ${G.q <= 2 ? 'halftime' : 'the end'}</button></div>
       <button class="btn ghost small block" id="mKey">${G.keyMode ? '🎯 Key moments: ON — play every snap' : '🎯 Switch to key moments only'}</button>
@@ -1044,6 +1234,8 @@
       ${row('autoArm', 'Auto-arm stars', 'On-fire stars fire on the next snap where they matter')}
       ${row('replays', 'Show-Me replays', 'Slow-motion replay of your stars’ big moments')}
       ${row('tips', 'Coach tips', 'Pop-up hints in your first games')}
+      ${row('calm', 'Reduce motion', 'No screen shake or flashes on big plays', false)}
+      ${row('hiLines', 'High-contrast lines', 'White line of scrimmage, orange line to gain', false)}
       <div class="set-row"><div><b>Theme</b><small>Menus and panels</small></div><div class="seg" id="themeSeg" style="width:170px"><button data-v="auto">Night</button><button data-v="light">Day</button></div></div>
       <div class="backup"><b>💾 Backup & restore</b><p class="muted" style="margin:4px 0 10px;font-size:13px">Phones can clear website data. Save a backup of your franchise, career, album and Legacy Points — and restore it on any device.</p>
         <div class="menu-sims"><button class="btn gold small" id="bkFile">⬇ Download file</button><button class="btn ghost small" id="bkCode">📋 Copy code</button></div>
@@ -1101,11 +1293,13 @@
       <h3>⏱ The clock</h3><p>The clock keeps running between snaps. Late in a half you get <b>timeouts</b> (3 per half), <b>hurry-up</b>, <b>spike</b> and <b>kneel</b>. There's a two-minute warning in the 2nd and 4th quarters.</p>
       <h3>🌊 Momentum</h3><p>Touchdowns, turnovers, sacks and star plays swing the momentum bar under the clock. Whoever has it plays a little better and the home crowd gets louder.</p>
       <h3>⭐ Star rail</h3><p>Your stars' rings fill as they make plays. At 100% a star catches fire 🔥 — arm him (or let <b>auto-arm</b> do it) and he takes over the next play where he matters. Two bad plays in a row while on fire cools him to 70%. Big moments get a slow-motion replay.</p>
+      <h3>🏟️ Stadiums & weather</h3><p>Every team has a home: <b>domes</b> keep the weather out and the noise in, <b>retractable roofs</b> close when it turns ugly, and open-air parks get the climate — snow up north late in the year, heat down south early. <b>Turf</b> is fast (outside runs and deep balls get a lift); <b>grass</b> gets sloppy in rain and snow; <b>thin air</b> carries kicks and wears visitors down. The Iron-Bowl is at a neutral site. In franchise mode you can renovate and rename your building.</p>
+      <h3>🎮 Controls</h3><p>The bar along the bottom: <b>Pause</b>, <b>speed</b> (1x, 2x, skip), <b>Wide</b> camera, <b>Tactics</b> (counter chart and their tendencies), <b>Stats</b> (box score) and <b>Key</b> moments. On a keyboard: <b>1–9</b> call plays, <b>Space</b> skips an animation, <b>T</b> timeout, <b>S</b> speed, <b>W</b> wide, <b>C</b> tactics, <b>B</b> box score, <b>Esc</b> pause/back. Your phone's back gesture works like the ← button.</p>
       <h3>📋 Halftime</h3><p>Pick one adjustment — double their top target, stack the box, protect the QB, up-tempo and more. They make one too.</p>
       <h3>🎯 Key moments</h3><p>Short on time? Choose <b>Key moments</b> before kickoff: routine snaps sim, and you take over in the red zone, on 4th down, in the two-minute drill and crunch time. ☰ also lets you sim a drive or skip to halftime.</p>
       <h3>🧩 Storylines</h3><p>Rivalries heat up when you lose to a team. Coaches who were fired or poached get revenge games. Stars facing the team that cut them play angry. Coaches who worked together know each other's playbooks. QB-receiver duos click after two seasons.</p>
       <h3>📰 The Gazette</h3><p>After every week: headline, power rankings, injuries, league news and an <b>EXTRA!</b> story — leaks, holdouts, hot seats and more. Big games end with a press conference.</p>
-      <h3>🏛️ Legacy</h3><p>Win to earn <b>Legacy Points</b> and spend them in the Store on jerseys, fields and touchdown celebrations. Every star you play with or against goes in your <b>sticker album</b> — shiny for MVPs, champions and Hall of Famers.</p>
+      <h3>🏛️ Legacy</h3><p>Win to earn <b>Legacy Points</b> and spend them in the Store on jerseys (set per team), home fields, touchdown celebrations, game balls and scorebug themes. Your field skin shows at home games in your own stadium. Finish a team's album page to unlock its Heritage jersey. The first win of each day pays +5. Every star you play with or against goes in your <b>sticker album</b> — shiny for MVPs, champions and Hall of Famers.</p>
       </div>`, (s) => (s.querySelector('#mx').onclick = closeModal));
   }
 
@@ -1117,6 +1311,5 @@
   };
   GI.ui = { showPaper: (p) => { S = S || SN.load(); showPaper(p, true); } }; // handy for testing
   window.addEventListener('pagehide', () => { if (G && !G.over && $('#game').classList.contains('on')) GI.save(G); });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (field) field.fieldCache = null; });
   setTimeout(refreshTitle, 0);
 })();

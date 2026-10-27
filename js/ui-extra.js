@@ -7,7 +7,7 @@
   const sleep = U.sleep;
 
   // ================= LEGACY =================
-  let lgTab = 'hall', albumTeam = null, storeCat = 'jersey';
+  let lgTab = 'hall', albumTeam = null, storeCat = 'jersey', kitTeam;
   function openLegacy(tab) { if (tab) lgTab = tab; albumTeam = null; renderLegacy(); show('legacy'); }
   function sticker(s) {
     const shiny = (s.shiny || []).length;
@@ -40,21 +40,33 @@
       } else {
         const list = all.filter((s) => albumTeam === 'shiny' ? (s.shiny || []).length : albumTeam === 'x' ? s.ti == null : s.ti === +albumTeam).sort((a, b) => ((b.shiny || []).length - (a.shiny || []).length) || b.rating - a.rating);
         const title = albumTeam === 'shiny' ? '✨ Shiny stickers' : albumTeam === 'x' ? 'College & other' : `${T(+albumTeam).city} ${T(+albumTeam).name}`;
-        body = `<div class="row between"><button class="btn ghost small" id="pgBack">← Pages</button><b>${title}</b></div><div class="stkgrid">${list.map(sticker).join('') || '<p class="muted">Empty page. Play them to collect stickers!</p>'}</div>`;
+        body = `<div class="row between"><button class="btn ghost small" id="albBack">← Pages</button><b>${title}</b></div><div class="stkgrid">${list.map(sticker).join('') || '<p class="muted">Empty page. Play them to collect stickers!</p>'}</div>`;
       }
     } else {
-      const cats = [['jersey', 'Jerseys'], ['field', 'Fields'], ['celebrate', 'Celebrations']];
-      const fav = T(GI.prefs.get().user != null ? GI.prefs.get().user : 0);
+      const cats = [['jersey', 'Jerseys'], ['field', 'Fields'], ['celebrate', 'Celebrate'], ['ball', 'Balls'], ['board', 'Scorebug']];
+      const S0 = GI.season.load();
+      if (kitTeam === undefined) kitTeam = S0 ? S0.user : GI.prefs.get().user != null ? GI.prefs.get().user : null;
+      const fav = T(kitTeam != null ? kitTeam : (GI.prefs.get().user != null ? GI.prefs.get().user : 0));
       const preview = (cat, id) => {
-        if (cat === 'jersey') { const c = { home: [fav.c1, fav.c2], throwback: [fav.c2, fav.c1], blackout: ['#202024', fav.c1], gold: ['#d9a514', fav.c1], ice: ['#eef3f8', fav.c1] }[id]; return `<span class="sw coin" style="background:${c[0]};box-shadow:0 0 0 3px ${c[1]},0 0 0 5px #fff"></span>`; }
-        if (cat === 'field') { const c = { classic: ['#52b25d', '#4aa854', '#fff'], checker: ['#52b25d', fav.c1, '#fff'], retro: ['#93ad4a', '#87a243', '#fff3d1'], night: ['#2a6a33', '#14301a', '#eaf6ff'], neon: ['#121f36', '#0b1424', '#5ef2ff'] }[id]; return `<span class="sw fld" style="background:repeating-linear-gradient(0deg,${c[0]} 0 8px,${c[1]} 8px 16px);box-shadow:inset 0 0 0 2px ${c[2]}"></span>`; }
+        if (cat === 'jersey') { const j = Lg.kit(fav, id); return `<span class="sw ball3d" style="--c1:${j.c1};--c2:${j.c2}"></span>`; }
+        if (cat === 'field') { const c = { classic: ['#36a04d', '#2f9346', '#fff'], checker: ['#36a04d', fav.c1, '#fff'], retro: ['#93ad4a', '#87a243', '#fff3d1'], night: ['#2a6a33', '#14301a', '#eaf6ff'], neon: ['#121f36', '#0b1424', '#5ef2ff'] }[id]; return `<span class="sw fld" style="background:repeating-linear-gradient(0deg,${c[0]} 0 8px,${c[1]} 8px 16px);box-shadow:inset 0 0 0 2px ${c[2]}"></span>`; }
+        if (cat === 'ball') return `<span class="sw fb fb-${id}"></span>`;
+        if (cat === 'board') return `<span class="sw sbprev" data-skin="${id}"><i>3:05</i></span>`;
         return `<span class="sw">${{ confetti: '🎊', fireworks: '🎆', stickers: '⭐', goldrain: '🪙' }[id]}</span>`;
       };
       const items = GI.COSMETICS[storeCat];
-      body = `<div class="sticker panel lpcard"><div><span class="label">Legacy Points</span><b>${D.lp}</b><small>Cosmetics show up in every mode</small></div></div>
-        <div class="seg" id="catSeg">${cats.map(([k, n]) => `<button data-v="${k}" class="${storeCat === k ? 'on' : ''}">${n}</button>`).join('')}</div>
-        <div class="storegrid">${Object.keys(items).map((id) => { const it = items[id], own = D.owned[storeCat].includes(id), eq = D.equip[storeCat] === id;
-          return `<div class="sticker sitem ${eq ? 'eq' : ''}">${preview(storeCat, id)}<b>${it.name}</b><small>${it.desc}</small>${eq ? '<span class="pill green">Equipped</span>' : own ? `<button class="btn ghost small" data-eq="${id}">Equip</button>` : `<button class="btn ${D.lp >= it.cost ? 'gold' : 'ghost'} small" data-buy="${id}" ${D.lp >= it.cost ? '' : 'disabled'}>🏅 ${it.cost}</button>`}</div>`; }).join('')}</div>`;
+      const curId = storeCat === 'jersey' ? Lg.jerseyId(kitTeam) : D.equip[storeCat];
+      const kitPick = storeCat === 'jersey' ? `<div class="kitrow"><span class="label">Kit for</span><select class="txt" id="kitTeam"><option value="">Every team (default)</option>${GI.TEAMS.map((t, i) => `<option value="${i}" ${kitTeam === i ? 'selected' : ''}>${t.city} ${t.name}${S0 && S0.user === i ? ' ★' : ''}</option>`).join('')}</select></div>` : '';
+      body = `<div class="sticker panel lpcard"><div><span class="label">Legacy Points</span><b>${D.lp}</b><small>${storeCat === 'field' ? 'Your field skin is used at home games in your stadium' : storeCat === 'jersey' ? 'Every kit is cut from that team\'s own colors' : 'Cosmetics show up in every mode'}</small></div></div>
+        <div class="seg scroll" id="catSeg">${cats.map(([k, n]) => `<button data-v="${k}" class="${storeCat === k ? 'on' : ''}">${n}</button>`).join('')}</div>${kitPick}
+        <div class="storegrid">${Object.keys(items).map((id) => {
+          const it = items[id], eq = curId === id;
+          const own = it.special ? kitTeam != null && Lg.heritageOpen(kitTeam) : D.owned[storeCat].includes(id);
+          let act;
+          if (eq) act = '<span class="pill green">Equipped</span>';
+          else if (it.special) act = kitTeam == null ? '<small class="muted">Pick a team above</small>' : own ? `<button class="btn ghost small" data-eq="${id}">Equip</button>` : `<small class="muted">Finish the ${esc(T(kitTeam).name)} album page</small>`;
+          else act = own ? `<button class="btn ghost small" data-eq="${id}">Equip</button>` : `<button class="btn ${D.lp >= it.cost ? 'gold' : 'ghost'} small" data-buy="${id}" ${D.lp >= it.cost ? '' : 'disabled'}>🏅 ${it.cost}</button>`;
+          return `<div class="sticker sitem ${eq ? 'eq' : ''}">${preview(storeCat, id)}<b>${it.name}</b><small>${it.desc}</small>${act}</div>`; }).join('')}</div>`;
     }
     $('#legacyBody').innerHTML = `<div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="lgBack">←</button><h2>Legacy</h2><span class="cashpill">🏅 ${D.lp}</span></div>
       <div class="seg" id="lgTabs">${tabs.map(([k, n]) => `<button data-v="${k}" class="${lgTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}`;
@@ -62,12 +74,23 @@
     $$('#lgTabs button').forEach((b) => (b.onclick = () => { lgTab = b.dataset.v; albumTeam = null; renderLegacy(); }));
     const ts = $('#toStore'); if (ts) ts.onclick = () => { lgTab = 'store'; renderLegacy(); };
     $$('#legacyBody [data-pg]').forEach((b) => (b.onclick = () => { albumTeam = b.dataset.pg; renderLegacy(); $('#legacy').scrollTop = 0; }));
-    const pb = $('#pgBack'); if (pb) pb.onclick = () => { albumTeam = null; renderLegacy(); };
+    const pb = $('#albBack'); if (pb) pb.onclick = () => { albumTeam = null; renderLegacy(); };
     $$('#catSeg button').forEach((b) => (b.onclick = () => { storeCat = b.dataset.v; renderLegacy(); }));
-    $$('#legacyBody [data-buy]').forEach((b) => (b.onclick = () => { const r = Lg.buy(storeCat, b.dataset.buy); if (!r.ok) { toast(r.why); return; } sfx('td'); toast(`Unlocked: ${GI.COSMETICS[storeCat][b.dataset.buy].name}!`); refreshField(); renderLegacy(); }));
-    $$('#legacyBody [data-eq]').forEach((b) => (b.onclick = () => { Lg.equip(storeCat, b.dataset.eq); sfx('select'); refreshField(); renderLegacy(); }));
+    $$('#legacyBody [data-buy]').forEach((b) => (b.onclick = () => {
+      const prev = Lg.equipped(storeCat);
+      const r = Lg.buy(storeCat, b.dataset.buy); if (!r.ok) { toast(r.why); return; }
+      if (storeCat === 'jersey' && kitTeam != null) { Lg.get().equip.jersey = prev; Lg.equip('jersey', b.dataset.buy, kitTeam); }
+      sfx('td'); toast(`Unlocked: ${GI.COSMETICS[storeCat][b.dataset.buy].name}!`); refreshField(); renderLegacy();
+    }));
+    $$('#legacyBody [data-eq]').forEach((b) => (b.onclick = () => { Lg.equip(storeCat, b.dataset.eq, storeCat === 'jersey' ? kitTeam : null); sfx('select'); refreshField(); renderLegacy(); }));
+    const kt = $('#kitTeam'); if (kt) kt.onchange = () => { kitTeam = kt.value === '' ? null : +kt.value; renderLegacy(); };
   }
-  function refreshField() { const f = U.getField(); if (f) f.fieldCache = null; }
+  function refreshField() {
+    const f = U.getField(), G = U.getG(); if (!f) return;
+    if (G && G.venue && f.venue) { const home = !G.venue.neutral && G.venue.idx === G.teams[G.user].idx; f.skin = home ? Lg.equipped('field') : 'classic'; }
+    f.ballSkin = Lg.equipped('ball');
+    f.fieldCache = null;
+  }
 
   // ================= CAREER MODE =================
   let C = null, cfield = null;
@@ -272,7 +295,7 @@
   function playCareerGame(kind) {
     C = CR.load();
     const p = C.p;
-    let mine, opp, label, oppOvr, myOvr, playoffRound = null;
+    let mine, opp, label, oppOvr, myOvr, playoffRound = null, homeGame = true, venue = null;
     const meStar = { id: p.id, pos: p.pos, name: p.name, num: p.num, rating: p.rating, meter: 60, clutch: p.clutch, dur: p.dur, ego: p.ego, traits: p.traits };
     if (kind === 'college') {
       const idx = C.college.games.findIndex((g) => !g.done);
@@ -280,6 +303,9 @@
       mine = CR.collegeTeam(p.ci, [meStar]); opp = CR.collegeTeam(g.opp);
       label = `College · Game ${idx + 1}`; myOvr = mine.ovr; oppOvr = opp.ovr;
       cg = CR.newGame(C, { kind, idx, home: g.home });
+      homeGame = g.home;
+      const ci = homeGame ? p.ci : g.opp, host = homeGame ? mine : opp, st = GI.STADIUMS[ci] || GI.STADIUMS[0];
+      venue = { name: `${host.city || 'College'} ${['Memorial Stadium', 'Field', 'Bowl', 'Coliseum'][ci % 4]}`, roof: 'open', surface: ci % 3 ? 'grass' : 'turf', climate: st.climate, cap: 40 + (ci % 5) * 8 };
     } else {
       const s = C.pro.season;
       const g = s.games.find((x) => !x.done);
@@ -294,14 +320,19 @@
       label = g ? `Year ${C.pro.year} · Week ${s.games.indexOf(g) + 1}` : ['Wild Card', 'Divisional Round', 'THE IRON-BOWL'][playoffRound];
       myOvr = base.ovr; oppOvr = GI.TEAMS[oi].ovr + (playoffRound != null ? 3 : 0);
       cg = CR.newGame(C, { kind, home: g ? g.home : true, playoffRound });
+      homeGame = g ? g.home : true;
+      venue = playoffRound === 2 ? Object.assign({}, GI.NEUTRAL_VENUE) : GI.venueOf(homeGame ? C.pro.team : oi);
     }
     cg.mine = mine; cg.opp = opp; cg.label = label; cg.myOvr = myOvr; cg.oppOvr = oppOvr;
     show('cgame');
     if (!cfield) { cfield = new GI.Field($('#cfield')); cfield.onSfx = (n) => sfx(n); $('#cgame .fieldwrap').addEventListener('click', () => { if (cfield.anim) cfield.finish(); }); }
     cfield.resize();
     cfield.setTeams(mine, opp);
-    cfield.setWeather(GI.util.wpick({ clear: 6, rain: 1, snow: 1, wind: 1 }));
+    cfield.setVenue(venue, 'classic', 75, venue && venue.neutral ? null : homeGame ? mine : opp);
+    cfield.setWeather(venue ? GI.underRoof(venue, GI.rollWeather(venue, kind === 'college' ? 0.6 : null)).weather : 'clear');
     cfield.speed = 1;
+    cfield.ballSkin = Lg.equipped('ball');
+    $('#csb').dataset.skin = Lg.equipped('board') || 'prime';
     nextMoment();
   }
   function fakeG(m, offense) {

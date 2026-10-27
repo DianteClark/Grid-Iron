@@ -2,12 +2,14 @@
 (function () {
   const GI = window.GI;
   const KEY = 'gridiron_legacy';
-  const blank = () => ({ lp: 0, earned: 0, owned: { jersey: ['home'], field: ['classic'], celebrate: ['confetti'] }, equip: { jersey: 'home', field: 'classic', celebrate: 'confetti' }, album: {}, hof: [], log: [], pages: {} });
+  const CATS = ['jersey', 'field', 'celebrate', 'ball', 'board'];
+  const blank = () => ({ lp: 0, earned: 0, owned: { jersey: ['home'], field: ['classic'], celebrate: ['confetti'], ball: ['classic'], board: ['prime'] }, equip: { jersey: 'home', field: 'classic', celebrate: 'confetti', ball: 'classic', board: 'prime' }, equipTeam: {}, album: {}, hof: [], log: [], pages: {}, daily: null });
   let D = null;
   function load() {
     if (D) return D;
     try { D = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { D = blank(); }
-    ['jersey', 'field', 'celebrate'].forEach((k) => { if (!D.owned[k]) D.owned[k] = blank().owned[k]; if (!D.equip[k]) D.equip[k] = blank().equip[k]; });
+    CATS.forEach((k) => { if (!D.owned[k]) D.owned[k] = blank().owned[k]; if (!D.equip[k]) D.equip[k] = blank().equip[k]; });
+    if (!D.equipTeam) D.equipTeam = {};
     return D;
   }
   function save() {
@@ -43,12 +45,28 @@
       save();
       return { ok: true };
     },
-    equip(cat, id) { load(); if (!D.owned[cat].includes(id)) return false; D.equip[cat] = id; save(); return true; },
+    CATS,
+    // jerseys can be set per team: teamIdx null = the default for every team
+    equip(cat, id, teamIdx) {
+      load();
+      if (cat === 'jersey' && id === 'heritage') { if (teamIdx == null || !D.pages[teamIdx]) return false; }
+      else if (!D.owned[cat].includes(id)) return false;
+      if (cat === 'jersey' && teamIdx != null) D.equipTeam[teamIdx] = id; else D.equip[cat] = id;
+      save(); return true;
+    },
     equipped(cat) { return load().equip[cat]; },
-    // the jersey you wear changes your on-field colors
+    jerseyId(teamIdx) { load(); const t = teamIdx != null ? D.equipTeam[teamIdx] : null; return t || D.equip.jersey; },
+    heritageOpen(teamIdx) { return !!load().pages[teamIdx]; },
+    // the jersey you wear changes your on-field colors — always built from your team's own colors
     jersey(team) {
-      const j = load().equip.jersey;
+      let j = Lg.jerseyId(team.idx);
+      if (j === 'heritage' && !D.pages[team.idx]) j = 'home';
+      return Lg.kit(team, j);
+    },
+    kit(team, j) {
       const c1 = team.c1, c2 = team.c2;
+      if (j === 'heritage') return { c1: GI.mixHex ? GI.mixHex(c1, '#e9dcc0', 0.28) : c1, c2: '#f4ecd8' };
+      if (j === 'rush') return { c1, c2: c1 };
       if (j === 'throwback') return { c1: c2, c2: c1 };
       if (j === 'blackout') return { c1: '#202024', c2: c1 };
       if (j === 'gold') return { c1: '#d9a514', c2: c1 };
@@ -75,7 +93,7 @@
       // finish a team page (8 stickers) for a bonus
       const per = {};
       Object.values(D.album).forEach((s) => { if (s.ti != null) per[s.ti] = (per[s.ti] || 0) + 1; });
-      Object.keys(per).forEach((ti) => { if (per[ti] >= 8 && !D.pages[ti]) { D.pages[ti] = true; Lg.addLP(10, `Album page complete: ${(GI.TEAMS[ti] || {}).name || 'team'}`); } });
+      Object.keys(per).forEach((ti) => { if (per[ti] >= 8 && !D.pages[ti]) { D.pages[ti] = true; Lg.addLP(10, `Album page complete: ${(GI.TEAMS[ti] || {}).name || 'team'} (Heritage jersey unlocked)`); } });
       Lg.fresh.push(...fresh.filter((f) => !Lg.fresh.includes(f)));
       save();
       return fresh;
@@ -87,6 +105,15 @@
       const teams = {};
       a.forEach((s) => { const k = s.ti != null ? s.ti : 'x'; teams[k] = (teams[k] || 0) + 1; });
       return { total: a.length, shiny: a.filter((s) => (s.shiny || []).length).length, teams };
+    },
+    // first win of the day pays a little extra
+    dailyWin() {
+      load();
+      const today = new Date().toDateString();
+      if (D.daily === today) return 0;
+      D.daily = today; save();
+      Lg.addLP(5, 'First win of the day');
+      return 5;
     },
     addHof(e) { load(); D.hof.unshift(e); if (D.hof.length > 80) D.hof.length = 80; save(); },
     // ---------- backups ----------

@@ -246,7 +246,7 @@
       const opp = h === S.user ? a : h;
       const goal = (S.goals || []).find((x) => x.id === 'rival' && x.opp === opp);
       if (goal && m > 0) goal.done = true;
-      (G.reelCands || []).forEach((c) => S.reel.push(Object.assign({}, c, { year: S.year, label: G.label || '', opp, userHome: h === S.user })));
+      (G.reelCands || []).forEach((c) => S.reel.push(Object.assign({}, c, { year: S.year, label: G.label || '', opp, userHome: h === S.user, venue: G.venue || null, weather: G.weather })));
       S.reel.sort((x, y) => y.score - x.score);
       if (S.reel.length > 14) S.reel.length = 14;
       (G.milestones || []).forEach((ms) => (S._miles = S._miles || []).push(ms));
@@ -495,12 +495,12 @@
     if (r.pyd) p.push(`${r.pyd.toLocaleString()} pass yds, ${r.ptd || 0} TD`);
     if (r.ryd) p.push(`${r.ryd.toLocaleString()} rush yds, ${r.rtd || 0} TD`);
     if (r.recyd) p.push(`${r.rec || 0} rec, ${r.recyd.toLocaleString()} yds, ${r.rectd || 0} TD`);
-    if (r.sk) p.push(`${r.sk} sacks`);
+    if (r.sk) p.push(`${r.sk} sack${r.sk === 1 ? "" : "s"}`);
     if (r.dint) p.push(`${r.dint} INT`);
-    if (r.tkl && !p.length) p.push(`${r.tkl} tackles`);
+    if (r.tkl && !p.length) p.push(`${r.tkl} tackle${r.tkl === 1 ? "" : "s"}`);
     if (r.fgm) p.push(`${r.fgm}/${r.fga || r.fgm} FG`);
     if (r.sm) p.push(`${r.sm} Show-Me`);
-    return p.slice(0, 3).join(' · ') || `${r.gp} games`;
+    return p.slice(0, 3).join(" · ") || `${r.gp} game${r.gp === 1 ? "" : "s"}`;
   }
   L.statLine = statLine;
   // roll this season's numbers into careers and the record book

@@ -42,6 +42,12 @@
     g.fillStyle = gr; g.beginPath(); g.arc(x, y, R, 0, 7); g.fill();
     g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.ellipse(x - R * 0.36, y - R * 0.44, R * 0.3, R * 0.17, -0.6, 0, 7); g.fill();
   }
+  const BALLS = {
+    classic: { a: '#c9773f', b: '#6a3415', lace: '#fff' },
+    white: { a: '#ffffff', b: '#a9b4c6', lace: '#b3262f' },
+    gold: { a: '#fff1b0', b: '#a86f00', lace: '#fff' },
+    neon: { a: '#d6ffe8', b: '#17a556', lace: '#052513', glow: 'rgba(46,226,122,.9)' },
+  };
   const CROWD = ['#e94b5b', '#f5b83d', '#3fb2ff', '#9b6bff', '#2ee27a', '#ffffff', '#ff8a3d', '#ff6fb5', '#5c6b8f', '#3a4766', '#46557a', '#2a3554'];
   const ADS = ['GRID IRON', 'PRIME TIME', 'THE GAZETTE', 'LEGACY', 'GAME DAY', 'SHOW-ME'];
   const ADC = ['#ff4d5a', '#1fd5b4', '#ffc53d', '#4d8dff', '#9b6bff', '#2ee27a'];
@@ -53,6 +59,7 @@
       this.players = []; this.ball = null; this.lines = null; this.weather = 'clear';
       this.speed = 1; this.ins = { top: 0, bottom: 0, right: 0 }; this.center = null;
       this.onSfx = null;
+      (Field.all = Field.all || []).push(this);
       this.resize();
       this.ro = new ResizeObserver(() => this.resize());
       this.ro.observe(canvas.parentElement);
@@ -97,7 +104,16 @@
       if (cdist(this.colors.user, this.colors.opp) < 90) this.colors.opp = '#f4f1ea';
       this.fieldCache = null;
     }
-    setWeather(w) { this.weather = w; this.wx = []; }
+    setWeather(w) { if (w !== this.weather) this.fieldCache = null; this.weather = w; this.wx = []; }
+    // where we're playing: the host's building, its surface/roof, your field skin (home only) and how full it is
+    setVenue(v, skin, crowd, hostTeam) { this.venue = v || null; this.skin = skin || 'classic'; this.crowdLevel = crowd == null ? 70 : crowd; this.hostTeam = hostTeam || null; this.fieldCache = null; }
+    host() {
+      const v = this.venue;
+      if (this.hostTeam) return this.hostTeam;
+      if (v && v.neutral) return { name: 'Iron Bowl', city: 'Iron Bowl', c1: '#1b2540', c2: '#ffc53d', glyph: 'star', neutral: true };
+      if (v && v.idx != null && this.opp && v.idx === this.opp.idx) return this.opp;
+      return this.user;
+    }
     alongCenter() {
       const want = this.horiz ? (this.w - this.ins.right) / 2 : this.ins.top + (this.h - this.ins.top - this.ins.bottom) / 2;
       if (this.center == null) this.center = want;
@@ -112,14 +128,16 @@
 
     // ---------- static field (cached, drawn vertically and rotated for landscape) ----------
     buildField() {
-      const ppy = this.ppy, dpr = Math.min(this.dpr, 2);
-      const pad = 15; // yards of stadium around the playing surface
+      const ppy = this.ppy, dpr = Math.min(this.dpr, ppy > 10 ? 1.5 : 2);
+      const pad = 13; // yards of stadium around the playing surface
       const c = document.createElement('canvas');
       c.width = Math.ceil((W_YD + pad * 2) * ppy * dpr); c.height = Math.ceil((120 + pad * 2) * ppy * dpr);
       const g = c.getContext('2d');
       g.scale(dpr, dpr);
       const X = (x) => (x + pad) * ppy, Y = (y) => (110 - y + pad) * ppy;
-      const style = (GI.legacy && GI.legacy.equipped('field')) || 'classic';
+      const style = this.skin || 'classic';
+      const V = this.venue || { roof: 'open', surface: 'grass' }, H = this.host() || this.user;
+      const dome = V.roof === 'dome' || (V.roof === 'retract' && this.weather === 'dome');
       const PAL = {
         classic: ['#2c8a41', '#36a04d', '#2f9346', 'rgba(255,255,255,.95)', 'rgba(255,255,255,.9)', '#1f6a33'],
         checker: ['#2c8a41', '#36a04d', '#2f9346', 'rgba(255,255,255,.95)', 'rgba(255,255,255,.9)', '#1f6a33'],
@@ -127,14 +145,17 @@
         night: ['#1d5527', '#2a6a33', '#25622e', 'rgba(236,246,255,.92)', 'rgba(236,246,255,.85)', '#143d1c'],
         neon: ['#0b1424', '#121f36', '#0f1b30', '#5ef2ff', '#ff5ad9', '#070d18'],
       };
-      const pal = PAL[style] || PAL.classic;
+      let pal = PAL[style] || PAL.classic;
+      if (style === 'classic' && V.surface === 'turf') pal = ['#2b9a49', '#2f9f4d', '#2d9c4b', 'rgba(255,255,255,.97)', 'rgba(255,255,255,.95)', '#22783a'];
+      if (style === 'classic' && V.surface === 'blue') pal = ['#1f55c4', '#2459c9', '#2157c6', 'rgba(255,255,255,.97)', 'rgba(255,255,255,.95)', '#173f94'];
       this.fieldStyle = style;
       const tw = (W_YD + pad * 2) * ppy, th = (120 + pad * 2) * ppy;
       // stands: night sky navy with a confetti crowd
-      g.fillStyle = '#0b1222'; g.fillRect(0, 0, tw, th);
-      let seed = 1234567;
+      g.fillStyle = dome ? '#141c30' : '#0b1222'; g.fillRect(0, 0, tw, th);
+      let seed = 1234567 + (V.idx || 0) * 7919;
       const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-      const cols = CROWD.concat(this.user ? [this.user.c1, this.user.c1, this.user.c2] : []);
+      const cols = CROWD.concat(H ? [H.c1, H.c1, H.c1, H.c2] : []);
+      const fill = Math.max(0.35, Math.min(1, (this.crowdLevel == null ? 70 : this.crowdLevel) / 90));
       const step = 1.05, rIn = 4.4;
       for (let yy = -10 - pad; yy <= 110 + pad; yy += step) {
         for (let xx = -pad; xx <= W_YD + pad; xx += step) {
@@ -142,13 +163,19 @@
           if (!outX && !outY) continue;
           const d = Math.max(outX ? (xx < 0 ? -xx : xx - W_YD) - rIn : 0, outY ? (yy < -10 ? -10 - yy : yy - 110) - rIn : 0);
           if (Math.round((outX ? yy : xx) / step) % 14 === 0) continue; // aisles
-          const k = rand();
-          g.globalAlpha = Math.max(0.18, 0.95 - d * 0.045) * (k < 0.3 ? 0.45 : 1);
-          g.fillStyle = cols[Math.floor(rand() * cols.length)];
+          const k = rand(), empty = rand() > fill;
+          g.globalAlpha = Math.max(0.18, 0.95 - d * 0.045) * (k < 0.3 ? 0.45 : 1) * (empty ? 0.5 : 1);
+          g.fillStyle = empty ? '#2a3554' : cols[Math.floor(rand() * cols.length)];
           g.beginPath(); g.arc(X(xx + (rand() - 0.5) * 0.25), Y(yy + (rand() - 0.5) * 0.25), ppy * (0.3 + rand() * 0.1), 0, 7); g.fill();
         }
       }
       g.globalAlpha = 1;
+      if (dome) { // the roof line: a catwalk ring of lights around the bowl
+        g.strokeStyle = 'rgba(200,215,255,.12)'; g.lineWidth = ppy * 0.6;
+        g.strokeRect(X(-pad + 1.2), Y(110 + pad - 1.2), (W_YD + pad * 2 - 2.4) * ppy, (120 + pad * 2 - 2.4) * ppy);
+        g.fillStyle = 'rgba(255,250,225,.9)';
+        for (let yy = -10 - pad + 3; yy < 110 + pad - 2; yy += 6) [-pad + 1.2, W_YD + pad - 1.2].forEach((xx) => { g.beginPath(); g.arc(X(xx), Y(yy), ppy * 0.32, 0, 7); g.fill(); });
+      }
       // rail between crowd and boards
       g.fillStyle = '#060a14'; g.fillRect(X(-rIn), Y(110 + rIn), (W_YD + rIn * 2) * ppy, (120 + rIn * 2) * ppy);
       // apron
@@ -158,14 +185,14 @@
         const len = vertical ? h : w, seg = 12;
         for (let o = 0, k = 0; o < len; o += seg, k++) {
           const L = Math.min(seg, len - o);
-          const col = this.user && k % 4 === 1 ? this.user.c1 : ADC[(k + (vertical ? 0 : 3)) % ADC.length];
+          const col = H && k % 4 === 1 ? H.c1 : ADC[(k + (vertical ? 0 : 3)) % ADC.length];
           const bx = vertical ? x0 : x0 + o, by = vertical ? y0 - o : y0, bw = vertical ? w : L, bh = vertical ? L : h;
           g.fillStyle = shade(col, -0.25); g.fillRect(X(bx), Y(by), bw * ppy, bh * ppy);
           g.fillStyle = col; g.fillRect(X(bx) + 1, Y(by) + 1, bw * ppy - 2, bh * ppy - 2);
           g.save(); g.translate(X(bx + bw / 2), Y(by - bh / 2)); if (vertical) g.rotate(-Math.PI / 2);
           g.font = F(ppy * 0.95, 800); g.textAlign = 'center'; g.textBaseline = 'middle';
           g.fillStyle = lum(col) > 0.62 ? '#0b1020' : '#fff';
-          const txt = k % 4 === 1 && this.user ? this.user.city.toUpperCase() : ADS[k % ADS.length];
+          const txt = k % 4 === 1 && H ? H.city.toUpperCase() : k % 6 === 3 && V.name ? V.name.toUpperCase() : ADS[k % ADS.length];
           g.fillText(txt, 0, ppy * 0.05, (vertical ? bh : bw) * ppy * 0.9);
           g.restore();
         }
@@ -175,9 +202,13 @@
       // playing surface: 5-yard mow stripes with a cross-cut checker
       g.fillStyle = pal[0]; g.fillRect(X(0), Y(110), W_YD * ppy, 120 * ppy);
       for (let y = -10; y < 110; y += 5) { g.fillStyle = (Math.floor((y + 10) / 5) % 2) ? pal[1] : pal[2]; g.fillRect(X(0), Y(y + 5), W_YD * ppy, 5 * ppy + 0.5); }
-      const cw = W_YD / 8;
-      for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? 'rgba(0,0,0,.045)' : 'rgba(255,255,255,.035)'; g.fillRect(X(i * cw), Y(110), cw * ppy + 0.5, 120 * ppy); }
-      const ez = (y0, team) => {
+      if (V.surface === 'grass' || style !== 'classic') {
+        const cw = W_YD / 8;
+        for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? 'rgba(0,0,0,.045)' : 'rgba(255,255,255,.035)'; g.fillRect(X(i * cw), Y(110), cw * ppy + 0.5, 120 * ppy); }
+      } else { // turf fibers
+        for (let i = 0; i < 2600; i++) { g.fillStyle = rand() < 0.5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)'; g.fillRect(X(rand() * W_YD), Y(-10 + rand() * 120), 1, 1); }
+      }
+      const ez = (y0, team, label) => {
         g.fillStyle = team.c1; g.fillRect(X(0), Y(y0 + 10), W_YD * ppy, 10 * ppy);
         if (style === 'checker') {
           g.fillStyle = team.c2;
@@ -189,7 +220,7 @@
           for (let x = -10; x < W_YD + 10; x += 4) { g.beginPath(); g.moveTo(X(x), Y(y0 + 10)); g.lineTo(X(x + 2), Y(y0 + 10)); g.lineTo(X(x - 8), Y(y0)); g.lineTo(X(x - 10), Y(y0)); g.fill(); }
         }
         g.save(); g.translate(X(CX), Y(y0 + 5));
-        const txt = team.name.toUpperCase();
+        const txt = String(label || team.name).toUpperCase();
         let fs = ppy * 6;
         g.font = F(fs);
         while (g.measureText(txt).width > W_YD * ppy * 0.84 && fs > 8) { fs -= 2; g.font = F(fs); }
@@ -198,7 +229,7 @@
         g.fillStyle = lum(team.c1) > 0.62 ? '#0b1020' : '#fff'; g.fillText(txt, 0, ppy * 0.25);
         g.restore();
       };
-      if (this.user) { ez(-10, this.user); ez(100, this.opp); }
+      if (H) { ez(-10, H, H.name); ez(100, H, H.city); }
       g.strokeStyle = pal[3]; g.lineCap = 'butt';
       if (style === 'neon') { g.shadowColor = pal[3]; g.shadowBlur = ppy * 0.9; }
       // boundary
@@ -218,14 +249,22 @@
         const n = String(y <= 50 ? y : 100 - y);
         [[7, Math.PI / 2], [W_YD - 7, -Math.PI / 2]].forEach(([x, rot]) => { g.save(); g.translate(X(x), Y(y)); g.rotate(rot); g.fillText(n, 0, 0); g.restore(); });
       }
-      if (this.user) {
+      if (H) {
         const r = ppy * 3.4, cx = X(CX), cy = Y(50);
         g.globalAlpha = 0.85;
         g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = Math.max(2, ppy * 0.25); g.beginPath(); g.arc(cx, cy, r + ppy * 0.3, 0, 7); g.stroke();
-        g.fillStyle = this.user.c1; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
-        g.strokeStyle = this.user.c2; g.lineWidth = ppy * 0.3; g.beginPath(); g.arc(cx, cy, r - ppy * 0.6, 0, 7); g.stroke();
-        if (GI.drawGlyph) GI.drawGlyph(g, this.user.glyph || GI.TEAM_GLYPH[this.user.idx], cx, cy, ppy * 4.4, GI.inkOn(this.user.c1), this.user.c1);
+        g.fillStyle = H.c1; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+        g.strokeStyle = H.c2; g.lineWidth = ppy * 0.3; g.beginPath(); g.arc(cx, cy, r - ppy * 0.6, 0, 7); g.stroke();
+        if (H.neutral) { g.fillStyle = H.c2; g.save(); g.translate(cx, cy); starPath(g, r * 0.6); g.fill(); g.restore(); }
+        else if (GI.drawGlyph) GI.drawGlyph(g, H.glyph || GI.TEAM_GLYPH[H.idx], cx, cy, ppy * 4.4, GI.inkOn(H.c1), H.c1);
         g.globalAlpha = 1;
+      }
+      if (this.weather === 'snow') {
+        g.fillStyle = 'rgba(240,246,255,.16)'; g.fillRect(X(-2.6), Y(112.6), (W_YD + 5.2) * ppy, 125.2 * ppy);
+        for (let i = 0; i < 1800; i++) { g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(X(-2.6 + rand() * (W_YD + 5.2)), Y(-12.6 + rand() * 125.2), ppy * (0.08 + rand() * 0.16), 0, 7); g.fill(); }
+      } else if (this.weather === 'rain') {
+        g.fillStyle = 'rgba(10,30,60,.14)'; g.fillRect(X(-2.6), Y(112.6), (W_YD + 5.2) * ppy, 125.2 * ppy);
+        for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(200,225,255,.08)'; g.beginPath(); g.ellipse(X(rand() * W_YD), Y(-10 + rand() * 120), ppy * (1 + rand() * 2.5), ppy * (0.4 + rand() * 0.8), 0, 0, 7); g.fill(); }
       }
       [-10, 110].forEach((y) => {
         g.strokeStyle = 'rgba(0,0,0,.3)'; g.lineWidth = 4;
@@ -346,6 +385,7 @@
           this.anim.firedPops.add(i);
           const at = p.at ? this.toAbs(p.at[0], p.at[1]) : this.ballAbs();
           this.pop(p.text, at, p.tone);
+          if (p.tone === 'good' || p.tone === 'star') this.flashbulbs(14);
           if (p.sfx) this.sfx(p.sfx);
           if (p.confetti) this.burst(at, p.confetti, /TOUCHDOWN/.test(p.text) && this.anim.res && this.anim.res.scored != null && this.anim.res.scored === this.userSide);
         }
@@ -364,7 +404,8 @@
     }
     burst(at, colors, mine) {
       const s = this.proj(at[0], at[1]);
-      this.flash = 1; this.shake = 0.45;
+      if (!this.calm) { this.flash = 1; this.shake = 0.45; }
+      this.flashbulbs(60);
       const style = mine && GI.legacy ? GI.legacy.equipped('celebrate') : 'confetti';
       const tc = this.colors ? this.colors.user : '#ffc93c';
       if (style === 'fireworks') {
@@ -384,7 +425,7 @@
 
     // ---------- frame ----------
     frame(now) {
-      const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
+      const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now;
       if (this.anim) {
         this.anim.t += dt * this.speed;
         if (this.anim.t >= this.anim.dur) this.finish();
@@ -434,6 +475,7 @@
         g.fillStyle = vg; g.fillRect(-20, -20, this.w + 40, this.h + 40);
       }
       if (this.ctxPlay) this.drawPlay(g, dt, ppy);
+      this.drawBulbs(g, dt);
       this.drawWeather(g, dt);
       this.drawPops(g, dt, ppy);
       if (this.flash > 0) {
@@ -445,8 +487,26 @@
     drawPlay(g, dt, ppy) {
       if (this.lines) {
         const L = (y, col, glow) => { const a = this.proj(0, y), b = this.proj(W_YD, y); g.save(); g.shadowColor = glow; g.shadowBlur = 8; g.strokeStyle = col; g.lineWidth = Math.max(2.5, ppy * 0.32); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); g.restore(); };
-        L(this.lines.los, 'rgba(77,141,255,.95)', 'rgba(77,141,255,.8)');
-        if (this.lines.fd != null) L(this.lines.fd, 'rgba(255,214,61,.98)', 'rgba(255,214,61,.8)');
+        // red zone: the last 20 yards glow
+        const goal = this.lines.dir > 0 ? 100 : 0;
+        if (Math.abs(goal - this.lines.los) <= 20 && !this.anim) {
+          const a = this.proj(0, this.lines.los), b = this.proj(W_YD, goal);
+          const pul = 0.06 + 0.03 * Math.sin(performance.now() / 300);
+          g.fillStyle = `rgba(255,77,90,${pul})`; g.fillRect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
+        }
+        const hc = this.highContrast;
+        L(this.lines.los, hc ? 'rgba(255,255,255,.98)' : 'rgba(77,141,255,.95)', hc ? 'rgba(0,0,0,.9)' : 'rgba(77,141,255,.8)');
+        if (this.lines.fd != null) L(this.lines.fd, hc ? 'rgba(255,170,0,1)' : 'rgba(255,214,61,.98)', hc ? 'rgba(0,0,0,.9)' : 'rgba(255,214,61,.8)');
+        // the chain crew on the sideline
+        const chain = (y, col, lbl) => {
+          const p = this.proj(Math.max(-1.3, this.camX - this.visAcross / 2 + 1.1), y), sz = Math.max(6, ppy * 0.6);
+          g.fillStyle = 'rgba(0,0,0,.4)'; g.fillRect(p[0] - sz / 2 + 1, p[1] - sz / 2 + 2, sz, sz);
+          g.fillStyle = col; g.fillRect(p[0] - sz / 2, p[1] - sz / 2, sz, sz);
+          if (lbl) { g.font = F(sz * 1.1); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#0b1020'; g.fillText(lbl, p[0], p[1] + 0.5); }
+        };
+        if (this.lines.fd != null) chain(this.lines.fd, '#ff8a3d');
+        const dn = this.ctxPlay.G && this.ctxPlay.G.down;
+        chain(this.lines.los, '#ffc53d', dn ? String(dn) : '');
       }
       // dashed run line behind the ball
       if (this.trail && this.trail.length > 1) {
@@ -522,10 +582,13 @@
         const yy = by - h * ppy * 0.55 + (this.ball.hold ? -r * 0.1 : 0), xx = bx + (this.ball.hold ? r * 0.6 : 0);
         g.save(); g.translate(xx, yy); g.rotate(this.ball.spin ? this.ball.spin * 12 : -0.6);
         g.fillStyle = 'rgba(6,10,20,.85)'; g.beginPath(); g.ellipse(0, 0, s * 1.25 + 1.3, s * 0.8 + 1.3, 0, 0, 7); g.fill();
+        const sk = BALLS[this.ballSkin] || BALLS.classic;
+        if (sk.glow && h > 0.2) { g.shadowColor = sk.glow; g.shadowBlur = 14; }
         const bg = g.createRadialGradient(-s * 0.4, -s * 0.3, s * 0.1, 0, 0, s * 1.3);
-        bg.addColorStop(0, '#c9773f'); bg.addColorStop(1, '#6a3415');
+        bg.addColorStop(0, sk.a); bg.addColorStop(1, sk.b);
         g.fillStyle = bg; g.beginPath(); g.ellipse(0, 0, s * 1.25, s * 0.8, 0, 0, 7); g.fill();
-        g.strokeStyle = '#fff'; g.lineWidth = 1; g.beginPath(); g.moveTo(-s * 0.45, 0); g.lineTo(s * 0.45, 0); g.stroke();
+        g.shadowBlur = 0;
+        g.strokeStyle = sk.lace; g.lineWidth = 1; g.beginPath(); g.moveTo(-s * 0.45, 0); g.lineTo(s * 0.45, 0); g.stroke();
         g.restore();
         // broadcast name tag over the ball carrier
         if (this.anim && this.ball.hold && this.ball.hold !== 'o:C') {
@@ -545,6 +608,29 @@
         else { g.fillStyle = q.c; g.fillRect(-q.r, -q.r * 0.5, q.r * 2, q.r); }
         g.restore();
       });
+    }
+    // camera flashes in the stands on big moments
+    flashbulbs(n) {
+      for (let i = 0; i < n; i++) {
+        const side = Math.random() < 0.5, far = 5 + Math.random() * 9;
+        const fx = side ? (Math.random() < 0.5 ? -far : W_YD + far) : Math.random() * W_YD;
+        const fy = side ? -10 + Math.random() * 120 : (Math.random() < 0.5 ? -10 - far : 110 + far);
+        (this.bulbs = this.bulbs || []).push({ x: fx, y: fy, t: -Math.random() * 1.2, life: 0.12 + Math.random() * 0.1 });
+      }
+    }
+    drawBulbs(g, dt) {
+      if (!this.bulbs || !this.bulbs.length) return;
+      g.save(); g.globalCompositeOperation = 'lighter';
+      this.bulbs = this.bulbs.filter((b) => (b.t += dt) < b.life);
+      this.bulbs.forEach((b) => {
+        if (b.t < 0) return;
+        const p = this.proj(b.x, b.y), k = 1 - b.t / b.life;
+        const gr = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], 9);
+        gr.addColorStop(0, `rgba(255,255,255,${k})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = gr; g.fillRect(p[0] - 9, p[1] - 9, 18, 18);
+      });
+      g.restore();
+      if (this.bulbs.length) this.bulbs = this.bulbs.filter((b) => b.t < b.life);
     }
     nameTag(g, x, y, name, col) {
       const fs = Math.max(11, Math.min(15, this.ppy * 1.35));
@@ -603,6 +689,8 @@
     }
   }
   GI.Field = Field;
+  // canvas text is baked into the field image: rebuild once the web fonts arrive
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => (Field.all || []).forEach((f) => { f.fieldCache = null; }));
 
   function starPath(g, r) { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr2 = i % 2 ? r * 0.45 : r; g.lineTo(Math.cos(a) * rr2, Math.sin(a) * rr2); } g.closePath(); }
   function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }

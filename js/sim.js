@@ -141,7 +141,13 @@
   GI.newGame = function (o) {
     const homeIdx = o.userHome ? o.user : o.opp;
     const awayIdx = o.userHome ? o.opp : o.user;
-    const weather = o.weather || wpick({ clear: 44, rain: 18, snow: 10, wind: 16, heat: 12 });
+    // venue: the home team's building unless it's a neutral site
+    const venue = o.venue ? Object.assign({}, o.venue) : (o.neutral ? Object.assign({}, GI.NEUTRAL_VENUE) : GI.venueOf(homeIdx));
+    const rolled = o.weather && o.weather !== 'auto' ? o.weather : GI.rollWeather(venue, o.when);
+    // a weather you picked yourself keeps a retractable roof open; a dome is still a dome
+    let roof = o.weatherPick && venue.roof === 'retract' ? { weather: rolled, note: 'Roof open — you asked for the elements' } : GI.underRoof(venue, rolled);
+    if (venue.roof === 'dome' && o.weather && o.weather !== 'auto' && o.weather !== 'dome' && !roof.note) roof = { weather: 'dome', note: `🏟️ It's a dome — no ${GI.WEATHER[o.weather].name.toLowerCase()} in here` };
+    const weather = roof.weather;
     let crowd = GI.CROWD[ri(0, GI.CROWD.length - 1)];
     if (o.crowdLevel != null) crowd = GI.CROWD.reduce((b, c) => (Math.abs(c.level - o.crowdLevel) < Math.abs(b.level - o.crowdLevel) ? c : b));
     const mk = (idx) => (o.teamData && o.teamData[idx] ? GI.makeTeam(idx, o.teamData[idx]) : GI.buildTeam(idx));
@@ -181,6 +187,7 @@
       to: { home: 3, away: 3 }, runoff: 0, twoMin: {}, hurry: { home: false, away: false }, mom: 0, adj: { home: null, away: null },
       ps: {}, cpuLog: [], drive: { plays: 0, side: firstRecv }, rivalry: o.rivalry || null, book: o.book || null, brokeRec: {},
       career: o.career || null, keyMode: !!o.keyMode, quick: !!o.quick, hurtIds: o.hurt || [], careerBase: o.careerBase || null,
+      venue, neutral: !!venue.neutral, roofNote: roof.note, outside: rolled, flow: [],
     };
     if (o.potwLeft) G.potwLeft = Object.assign({}, o.potwLeft);
     G.edge = buildEdges(G, o.edges || {});
@@ -196,7 +203,8 @@
     }
     // starting meter boosts (grudges, old teams, revenge)
     ['home', 'away'].forEach((s) => teams[s].stars.forEach((st) => { const b = G.edge[s].starStart[st.id]; if (b) st.meter = clamp(st.meter + b, 0, 99); }));
-    addLog(G, `Coin toss: ${teams[firstRecv].name} receive. ${GI.WEATHER[weather].icon} ${GI.WEATHER[weather].name}, ${crowd.name} crowd.`, 'info');
+    if (venue.roof === 'dome' && !venue.neutral) G.crowd = Object.assign({}, G.crowd, { level: Math.min(99, G.crowd.level + 6) });
+    addLog(G, `Coin toss at ${venue.name}: ${teams[firstRecv].name} receive. ${GI.WEATHER[weather].icon} ${GI.WEATHER[weather].name}, ${crowd.name} crowd.`, 'info');
     return G;
   };
   const hasTrait = (s, t) => !!(s && s.traits && s.traits.includes(t));
@@ -312,7 +320,8 @@
     const t = G.teams[side], r = GI.ratings(t), W = GI.WEATHER[G.weather];
     const kp = t.stars.find((s) => s.pos === 'KP' && !s.injured);
     let range = 52 + (r.st - 65) / 3 + W.kick * 0.6 + (kp && kp.armed ? 8 : 0);
-    if (side === 'away') range -= (G.crowd.level / 100) * 1.5;
+    if (side === 'away' && !G.neutral) range -= (G.crowd.level / 100) * 1.5;
+    if (G.venue && G.venue.climate === 'alpine' && G.venue.roof === 'open') range += 3;
     return 1 / (1 + Math.exp((dist - range) / 4.2));
   };
 
@@ -635,10 +644,18 @@
     }
     G.pending = null;
     // drives: a short possession that ends in a punt is a three-and-out
+    const elapsed = (Math.min(G.q, 5) - 1) * G.qLen + (G.qLen - G.clock);
     if (G.poss !== fromPoss || res.scored != null) {
       if (res.kind === 'punt' && G.drive.plays <= 3 && G.drive.side === fromPoss) swing(G, other(fromPoss), 9);
-      G.drive = { plays: 0, side: G.poss };
+      const d = G.drive;
+      if (d.side === fromPoss && d.plays + 1 >= 3 && res.kind !== 'kickoff' && res.kind !== 'pat') {
+        const how = res.scored != null ? (res.kind === 'fg' ? 'Field goal' : res.scored === fromPoss ? 'Touchdown' : 'Defensive score') : res.turnover ? 'Turnover' : res.kind === 'punt' ? 'Punt' : res.kind === 'fg' ? 'Missed FG' : 'Downs';
+        res.driveSum = { side: fromPoss, plays: d.plays + 1, yds: Math.max(0, G.stats[fromPoss].yds - (d.yds0 || 0)), secs: Math.max(0, elapsed - (d.t0 || 0)), how };
+      }
+      G.drive = { plays: 0, side: G.poss, yds0: G.stats[G.poss].yds, t0: elapsed };
     } else if (res.kind !== 'kickoff') G.drive.plays++;
+    (G.flow = G.flow || []).push([elapsed, G.score.home, G.score.away]);
+    if (G.flow.length > 400) G.flow.splice(0, G.flow.length - 400);
     G.mom = Math.round(G.mom * 0.9);
     res.mom = G.mom;
     if (G.newRecord) res.record = G.newRecord;
@@ -652,7 +669,21 @@
   function swing(G, side, amt) { G.mom = clamp(G.mom + (side === 'home' ? amt : -amt), -100, 100); }
   const momFor = (G, side) => (side === 'home' ? G.mom : -G.mom);
   GI.momFor = momFor;
-  function crowdEff(G) { return clamp(G.crowd.level + Math.max(0, momFor(G, 'home')) / 5, 0, 99); }
+  function crowdEff(G) {
+    if (G.neutral) return 0;
+    return clamp(G.crowd.level + Math.max(0, momFor(G, 'home')) / 5 + (G.venue && G.venue.roof === 'dome' ? 6 : 0), 0, 99);
+  }
+  GI.crowdEff = crowdEff;
+  // the building itself: turf speed, wet grass, thin air
+  function venueAdv(G, P, off, isRun) {
+    const v = G.venue; if (!v) return 0;
+    let a = 0;
+    if (v.surface !== 'grass') { if (off === 'out_run') a += 0.08; if (off === 'long') a += 0.05; }
+    if (v.surface === 'blue' && P === 'away') a -= 0.04;
+    if (v.surface === 'grass' && (G.weather === 'rain' || G.weather === 'snow') && isRun) a -= 0.05;
+    if (v.climate === 'alpine' && v.roof === 'open' && P === 'away' && G.q >= 4) a -= 0.08;
+    return a;
+  }
 
   // ---------- spike & kneel ----------
   function doSpike(G) {
@@ -817,6 +848,7 @@
     if (isRun) a += W.run;
     if (off === 'trick') a += W.pass * 0.5;
     if (P === 'away') a -= (crowdEff(G) / 100) * 0.25;
+    a += venueAdv(G, P, off, isRun);
     if (G.weather === 'heat' && G.q >= 4) a += (ro.ovr - rd.ovr) / 40;
     a += (P === G.user ? -1 : 1) * DIFF_ADV[G.diff];
     a += gauss(0, 0.35);
@@ -890,7 +922,8 @@
 
     // ---------- outcome ----------
     let o = {};
-    const fumbleCheck = (p) => R() < p * W.fum * secure;
+    const wetGrass = G.venue && G.venue.surface === 'grass' && (G.weather === 'rain' || G.weather === 'snow') ? 1.1 : 1;
+    const fumbleCheck = (p) => R() < p * W.fum * secure * wetGrass;
     if (crazy) {
       const s = crazy.s, pos = s.pos;
       o.crazy = { name: GI.shortName(s.name), pos, title: GI.SHOWME[pos].name, team: crazy.side === 'o' ? P : D, id: s.id, num: s.num, full: s.name };
@@ -1162,7 +1195,7 @@
 
   function injuries(G, res) {
     ['home', 'away'].forEach((side) => {
-      if (R() > 0.0045) return;
+      if (R() > 0.0045 * (G.venue && G.venue.surface !== 'grass' ? 1.12 : 1)) return;
       const t = G.teams[side];
       const pool = t.stars.filter((s) => !s.injured && s.pos !== 'KP' && s.pos !== 'QB');
       if (R() < 0.15) { const qb = t.stars.find((s) => s.pos === 'QB' && !s.injured); if (qb) pool.push(qb); }

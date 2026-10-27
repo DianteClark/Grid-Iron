@@ -11,6 +11,19 @@
   const traitChips = (s) => (s.traits || []).map((k) => GI.TRAITS[k] ? `<span class="trait" title="${GI.TRAITS[k].desc}">${GI.TRAITS[k].icon} ${GI.TRAITS[k].name}</span>` : '').join('');
 
   // ================= HUB =================
+  function lastMeeting(opp) {
+    let last = null;
+    (S.schedule || []).forEach((wk) => wk.forEach((g) => { if (g.done && ((g.h === S.user && g.a === opp) || (g.a === S.user && g.h === opp))) last = g; }));
+    if (!last) return '';
+    const us = last.h === S.user ? last.hs : last.as, them = last.h === S.user ? last.as : last.hs;
+    return `<div class="lastmeet">Last meeting: <b class="${us > them ? 'w' : us < them ? 'l' : ''}">${us > them ? 'W' : us < them ? 'L' : 'T'} ${us}-${them}</b></div>`;
+  }
+  function venueLine() {
+    const f = SN.forecast(S); if (!f) return '';
+    const v = f.v;
+    const fc = f.list.slice(0, 3).map((x) => `${GI.WEATHER[x.k].icon} ${x.p}%`).join(' · ');
+    return `<div class="venueline"><span>📍 <b>${esc(v.name)}</b></span><span>${GI.ROOFS[v.roof].icon} ${v.roof === 'open' ? GI.SURFACES[v.surface].name : GI.ROOFS[v.roof].name + ' · ' + GI.SURFACES[v.surface].name}</span><span>${f.storm ? 'Forecast: ' : ''}${fc}</span></div>`;
+  }
   function renderHub() {
     sync(); U.setS(S);
     if (!S) return;
@@ -61,6 +74,7 @@
           <div class="row between"><span class="pill ${c.playoff ? 'red' : 'gold'}">${c.label}${seedTxt}</span><span class="label">${hot ? '🔥 Rivalry · ' : ''}${c.ironBowl ? 'Neutral site' : c.home ? 'Home' : 'Away'}</span></div>
           <div class="ng-mid">${helmet(ut, 'md')}<span class="ng-vs">${c.home || c.ironBowl ? 'VS' : 'AT'}</span>${helmet(op, 'md')}</div>
           <div class="ng-opp"><b>${op.city} ${op.name}</b><span class="muted">${orc} · ${SN.teamOvr(S, c.opp)} OVR · ${S.rosters[c.opp].stars.length} stars</span></div>
+          ${lastMeeting(c.opp)}${venueLine()}
           ${modsHTML()}
           <div class="row" style="gap:10px;margin-top:12px"><button class="btn green" style="flex:2" id="hubPlay">Play ▶</button><button class="btn ghost" style="flex:1" id="hubSim">Sim</button></div>
         </div>`;
@@ -80,6 +94,7 @@
         ${helmet(ut, 'lg')}
         <div class="ht-info"><span class="label">${ut.city}</span><h2>${ut.name}</h2>
           <div class="row" style="gap:6px;flex-wrap:wrap"><span class="pill">${SN.divName(S.user)}${gp ? ' · ' + ord(place) : ''}</span><span class="pill">${ovr} OVR</span>${streak ? `<span class="pill">${streak}</span>` : ''}${S.morale[S.user] ? `<span class="pill ${S.morale[S.user] > 0 ? 'green' : 'red'}">Morale ${S.morale[S.user] > 0 ? '+' : ''}${S.morale[S.user]}</span>` : ''}${S.rosters[S.user].identity ? `<span class="pill">${GI.IDENTITIES[S.rosters[S.user].identity].icon} ${GI.IDENTITIES[S.rosters[S.user].identity].name}</span>` : ''}</div>
+          ${gp ? (() => { const sp = SN.splits(S, S.user); return `<div class="splits">🏠 ${sp.home.w}-${sp.home.l} · ✈️ ${sp.away.w}-${sp.away.l}</div>`; })() : ''}
           <div class="hype"><span>📣 Fan hype</span><div><i style="width:${hype}%"></i></div><b>${hype}</b></div></div>
         <div class="ht-rec">${SN.recStr(r)}</div>
       </div>
@@ -371,7 +386,7 @@
   let officeTab = 'upgrades';
   function renderOffice() {
     sync();
-    const tabs = [['upgrades', 'Upgrades'], ['staff', 'Staff'], ['contracts', 'Contracts'], ['fa', 'Free Agency'], ['finances', 'Finances']];
+    const tabs = [['upgrades', 'Upgrades'], ['stadium', 'Stadium'], ['staff', 'Staff'], ['contracts', 'Contracts'], ['fa', 'Free Agency'], ['finances', 'Finances']];
     let body = '';
     if (officeTab === 'upgrades') {
       body = Object.keys(SN.UPGRADES).map((k) => {
@@ -379,6 +394,15 @@
         return `<div class="sticker upcard"><div class="up-ic">${u.icon}</div><div class="up-main"><b>${u.name}</b><div class="lvl">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= lv ? 'on' : ''}"></i>`).join('')}</div><small>${u.desc.filter(Boolean).join(' · ')}</small></div>
           ${cost ? `<button class="btn ${S.cash >= cost ? 'gold' : 'ghost'} small" data-up="${k}" ${S.cash >= cost ? '' : 'disabled'}>Lv ${lv + 1} · ${money(cost)}</button>` : '<span class="pill green">MAX</span>'}</div>`;
       }).join('') + `<p class="muted" style="font-size:12.5px">Each upgrade level adds ${money(1.1)}/yr in upkeep. Stadium levels also lift ticket revenue, fan hype and base morale.</p>`;
+    } else if (officeTab === 'stadium') {
+      const v = GI.venueOf(S.user, S), open = SN.canRenovate(S);
+      const sp = SN.splits(S, S.user);
+      body = `<div class="sticker panel stadcard"><div class="row between"><h3>🏟️ ${esc(v.name)}</h3><button class="btn ghost small" id="stRename">Rename</button></div>
+          <div class="stadchips"><span class="pill">${GI.ROOFS[v.roof].icon} ${GI.ROOFS[v.roof].name}</span><span class="pill">${GI.SURFACES[v.surface].icon} ${GI.SURFACES[v.surface].name}</span><span class="pill">🌡️ ${GI.CLIMATES[v.climate].name}</span><span class="pill">👥 ${v.cap + (S.up.stadium - 1) * 4}k seats</span></div>
+          <p class="muted" style="font-size:13px;margin:8px 0 0">${GI.SURFACES[v.surface].desc}${v.roof === 'dome' ? ' The roof keeps the weather out and the noise in.' : v.roof === 'retract' ? ' The roof closes whenever the weather turns.' : ''} Home ${sp.home.w}-${sp.home.l} · Road ${sp.away.w}-${sp.away.l} this year.</p></div>
+        <div class="label" style="margin:4px 2px 8px">Renovations${open ? '' : ' · construction happens in the offseason, draft or spring training'}</div>
+        ${Object.keys(SN.PROJECTS).filter((k) => SN.PROJECTS[k].ok(v)).map((k) => { const p = SN.PROJECTS[k]; const can = open && S.cash >= p.cost; return `<div class="sticker upcard"><div class="up-ic">${p.icon}</div><div class="up-main"><b>${p.name}</b><small>${p.desc}</small></div><button class="btn ${can ? 'gold' : 'ghost'} small" data-proj="${k}" ${can ? '' : 'disabled'}>${money(p.cost)}</button></div>`; }).join('')}
+        <p class="muted" style="font-size:12.5px">Your field skin from the Legacy store shows up at home games in your building. Road games are played on the other team's field.</p>`;
     } else if (officeTab === 'staff') {
       const r = S.rosters[S.user];
       const pool = S.coachPool.slice(0, 14);
@@ -415,6 +439,17 @@
       <div class="postabs" id="ofTabs">${tabs.map(([k, n]) => `<button data-v="${k}" class="${k === officeTab ? 'on' : ''}">${n}${k === 'contracts' && (S.expiring || []).length ? ' •' : ''}${k === 'fa' && S.phase === 'offseason' && !S.faDone ? ' •' : ''}</button>`).join('')}</div>${body}`;
     $('#ofBack').onclick = () => { renderHub(); show('hub'); };
     $$('#ofTabs button').forEach((b) => (b.onclick = () => { officeTab = b.dataset.v; renderOffice(); }));
+    $$('#officeBody [data-proj]').forEach((b) => (b.onclick = () => {
+      const p = SN.PROJECTS[b.dataset.proj];
+      confirmBox(`${p.icon} ${p.name}?`, `${p.desc} Cost: ${money(p.cost)}.`, 'Break ground', 'Not now', () => { if (SN.renovate(S, b.dataset.proj)) { sfx('horn'); toast(`🏗️ ${p.name} — done!`); } renderOffice(); });
+    }));
+    const rn = $('#stRename'); if (rn) rn.onclick = () => {
+      const v = GI.venueOf(S.user, S);
+      modal(`<div class="row between"><h2>Rename the stadium</h2>${closeBtn}</div><input class="txt" id="stName" maxlength="28" value="${esc(v.name)}"><button class="btn green block" id="stSave" style="margin-top:12px">Save</button>`, (m) => {
+        m.querySelector('#mx').onclick = closeModal;
+        m.querySelector('#stSave').onclick = () => { if (SN.renameStadium(S, m.querySelector('#stName').value)) { closeModal(); toast('🏟️ New name on the marquee'); renderOffice(); } };
+      });
+    };
     $$('#officeBody [data-up]').forEach((b) => (b.onclick = () => { if (SN.upgrade(S, b.dataset.up)) { sfx('star'); toast(`${SN.UPGRADES[b.dataset.up].name} upgraded!`); renderOffice(); } }));
     $$('#officeBody [data-rs]').forEach((b) => (b.onclick = () => { const res = SN.resign(S, b.dataset.rs, +b.dataset.y); if (res && res.ok === false) toast(res.why, 2600); else sfx('select'); renderOffice(); }));
     $$('#officeBody [data-let]').forEach((b) => (b.onclick = () => { SN.release(S, b.dataset.let, 'walked'); renderOffice(); }));
@@ -565,7 +600,9 @@
       res = `<span class="pill ${us > them ? 'green' : us < them ? 'red' : ''}">${us > them ? 'W' : us < them ? 'L' : 'T'}</span>`;
     }
     const hot = L.heat(S, g.h, g.a) + L.heat(S, g.a, g.h) >= 50 ? '<span title="Rivalry">🔥</span>' : '';
-    return `<div class="grow">${side(g.a, g.as, aw)}<span class="at">@</span>${side(g.h, g.hs, hw)}${res}${hot}${g.ot ? '<small class="muted">OT</small>' : ''}</div>`;
+    const V = g.neutral ? GI.NEUTRAL_VENUE : GI.venueOf(g.h, S);
+    const vi = !seeds && (g.h === S.user || g.a === S.user) ? `<span class="vi" title="${esc(V.name)}">${V.roof === 'dome' ? '🏟️' : V.roof === 'retract' ? '🪟' : V.surface === 'grass' ? '🌱' : '⚡'}</span>` : '';
+    return `<div class="grow">${side(g.a, g.as, aw)}<span class="at">@</span>${side(g.h, g.hs, hw)}${vi}${res}${hot}${g.ot ? '<small class="muted">OT</small>' : ''}</div>`;
   }
 
   // ================= RECORDS, HALL OF FAME, AWARDS, RIVALRIES =================
@@ -578,6 +615,8 @@
       const bk = S.book[recScope] || {};
       body = `<div class="seg" id="scopeSeg">${[['game', 'Single game'], ['season', 'Season'], ['career', 'Career']].map(([k, n]) => `<button data-v="${k}" class="${recScope === k ? 'on' : ''}">${n}</button>`).join('')}</div>
         <div class="sticker panel">${L.RECKEYS.map((k) => { const r = bk[k]; return `<div class="recrow ${r && r.team === S.user ? 'mine' : ''}"><span class="rk">${GI.STAT_NAME[k]}</span>${r ? `<b>${r.v.toLocaleString()}</b><span class="rh">${helmet(T(r.team), 'xs')}${esc(r.name)} <small>Y${r.year}</small></span>` : '<b>—</b><span class="rh muted">open</span>'}</div>`; }).join('')}</div>`;
+      const wx = S.wxRec || {};
+      if (Object.keys(wx).length) body += `<div class="sticker panel"><h3>🌦️ In the elements</h3><p class="muted" style="margin:0 0 6px;font-size:12.5px">Your franchise's all-time record by weather.</p>${Object.keys(GI.WEATHER).filter((k) => wx[k]).map((k) => `<div class="recrow"><span class="rk">${GI.WEATHER[k].icon} ${GI.WEATHER[k].name}</span><b>${wx[k].w}-${wx[k].l}${wx[k].t ? '-' + wx[k].t : ''}</b></div>`).join('')}</div>`;
     } else if (recTab === 'hof') {
       const all = GI.legacy.get().hof.filter((h) => h.fid !== S.fid);
       const card = (h) => `<div class="hofcard">${helmet(T(h.team), 'sm')}<div><b>${esc(h.name)}</b><small>${GI.POS[h.pos].label} · ${h.tname || T(h.team).name} · inducted Y${h.year}${h.career ? ' · 🎮 career' : ''}</small><p>${h.line}${h.rings ? ` · 💍×${h.rings}` : ''}${(h.awards || []).length ? ` · 🏆×${h.awards.length}` : ''}</p></div></div>`;
@@ -621,7 +660,8 @@
       const G = { user: c.user, teams, phase: 'play', poss: c.res.side, ballOn: c.res.start, toGo: c.res.toGo || 10, down: c.res.down || 1, twoPt: false, kickTeam: c.res.side };
       reelField.resize();
       reelField.setTeams(teams[c.user], teams[c.user === 'home' ? 'away' : 'home']);
-      reelField.setWeather('clear');
+      reelField.setVenue(c.venue || GI.venueOf(c.home, S), 'classic', 85, c.venue && c.venue.neutral ? null : teams.home);
+      reelField.setWeather(c.weather || 'clear');
       reelField.speed = 0.85;
       $('#reelCap').innerHTML = `<span class="label">${reelIdx + 1} / ${list.length} · Year ${c.year} ${esc(c.label || '')} · vs ${T(c.opp).abbr}</span><b>${esc(c.text.replace(/^[A-Z]{2,4}: /, ''))}</b>`;
       try { reelField.showFormation(G); await U.sleep(500); await reelField.runPlay(c.res, G); } catch (e) { console.error(e); }

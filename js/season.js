@@ -518,6 +518,19 @@
     const hype = i === S.user ? ((S.hype || 40) - 50) / 4 : 0;
     return clamp(30 + lv * 9 + wp * 25 + R() * 10 + hype, 20, 97);
   }
+  // what the hub shows before kickoff: where, roof, surface and the odds
+  S_.forecast = function (S) {
+    const c = S_.current(S);
+    if (!c || !c.game) return null;
+    const homeIdx = c.home ? S.user : c.opp;
+    const v = c.ironBowl ? Object.assign({}, GI.NEUTRAL_VENUE) : GI.venueOf(homeIdx, S);
+    const when = S.phase === 'playoffs' ? 1 : S.week / Math.max(1, S.weeks - 1);
+    if (v.roof === 'dome') return { v, list: [{ k: 'dome', p: 100 }] };
+    const w = GI.climateOdds(v.climate, when); let tot = 0; for (const k in w) tot += w[k];
+    const list = Object.keys(w).map((k) => ({ k, p: Math.round((w[k] / tot) * 100) })).filter((x) => x.p > 0).sort((a, b) => b.p - a.p);
+    if (S.mods && S.mods.weather) return { v, list: [{ k: GI.underRoof(v, S.mods.weather).weather, p: 90 }], storm: true };
+    return { v, list };
+  };
   S_.gameOptions = function (S) {
     const c = S_.current(S);
     const m = S.mods || {};
@@ -538,7 +551,10 @@
     // career totals going in, so milestones can pop mid-game
     const careerBase = {};
     S_.allStars(S, S.user).forEach((s) => { const b = Object.assign({}, s.career || {}); const ss = S.sstats[s.id] || {}; GI.PSK.forEach((k) => { if (ss[k]) b[k] = (b[k] || 0) + ss[k]; }); careerBase[s.id] = b; });
+    const when = S.phase === 'playoffs' ? 1 : S.week / Math.max(1, S.weeks - 1);
+    const venue = c.ironBowl ? Object.assign({}, GI.NEUTRAL_VENUE) : GI.venueOf(homeIdx, S);
     return {
+      venue, when, neutral: !!c.ironBowl,
       user: S.user, opp: c.opp, userHome: c.home, qMin: S.qMin, diff: S.diff, teamData,
       injured: S_.injuredIds(S).filter((id) => !hurt.includes(id)), morale, weather: m.weather || null, crowdLevel,
       playoff: c.playoff, intel: m.intel ? true : null, film: !!m.film, starMeter, label: c.label,
@@ -607,6 +623,11 @@
         G.log.filter((l) => l.type === 'star').forEach((l) => highlights.unshift({ text: l.text, game: g, mine: true }));
         const us = g.h === S.user ? g.hs : g.as, them = g.h === S.user ? g.as : g.hs;
         S.seasonStats.gp++; S.seasonStats.pf += us; S.seasonStats.pa += them;
+        // how you do in the elements, all-time
+        const wk = G.weather || 'clear';
+        S.wxRec = S.wxRec || {};
+        const wr = S.wxRec[wk] = S.wxRec[wk] || { w: 0, l: 0, t: 0 };
+        if (us > them) wr.w++; else if (us < them) wr.l++; else wr.t++;
         // gate receipts
         if (g.h === S.user) {
           const wp = S_.pct(S.rec[S.user]);
@@ -657,7 +678,9 @@
     const ed = GI.league.edgesFor(S, g.h, g.a);
     // in the playoffs, CPU teams push questionable stars onto the field
     const inj = S_.injuredIds(S).filter((id) => !(playoff && S.inj[id] === 1 && R() < 0.6));
-    return GI.simGame(g.h, g.a, { qMin: S.qMin, injured: inj, teamData, playoff, crowdLevel: playoff ? 88 : homeCrowd(S, g.h), morale: { home: S.morale[g.h] || 0, away: S.morale[g.a] || 0 }, edges: ed.edges, rivalry: ed.rivalry });
+    const when = playoff ? 1 : S.week / Math.max(1, S.weeks - 1);
+    const venue = g.neutral ? Object.assign({}, GI.NEUTRAL_VENUE) : GI.venueOf(g.h, S);
+    return GI.simGame(g.h, g.a, { venue, when, qMin: S.qMin, injured: inj, teamData, playoff, crowdLevel: playoff ? 88 : homeCrowd(S, g.h), morale: { home: S.morale[g.h] || 0, away: S.morale[g.a] || 0 }, edges: ed.edges, rivalry: ed.rivalry });
   }
   function pushPaper(S, p) {
     S.paper = p;
@@ -814,6 +837,42 @@
     S_.save(S);
     return { ok: true };
   };
+  // ---------- stadium projects: roof and surface ----------
+  S_.PROJECTS = {
+    turf: { name: 'Install fast turf', icon: '⚡', cost: 8, ok: (v) => v.surface === 'grass', set: { surface: 'turf' }, desc: 'Outside runs and deep balls get a lift for everyone. A few more injuries.' },
+    blue: { name: 'Paint it blue', icon: '💙', cost: 10, ok: (v) => v.surface !== 'blue', set: { surface: 'blue' }, desc: 'Fast turf that throws visitors off. Fans love it (+8 hype).', hype: 8 },
+    grass: { name: 'Lay natural grass', icon: '🌱', cost: 6, ok: (v) => v.surface !== 'grass', set: { surface: 'grass' }, desc: 'Back to basics. Sloppy in bad weather — good for ground-and-pound teams.' },
+    retract: { name: 'Build a retractable roof', icon: '🪟', cost: 30, ok: (v) => v.roof !== 'retract', set: { roof: 'retract' }, desc: 'Open on nice days, closed when the weather turns (+6 hype).', hype: 6 },
+    dome: { name: 'Build a dome', icon: '🏟️', cost: 24, ok: (v) => v.roof !== 'dome', set: { roof: 'dome' }, desc: 'No weather ever, and the noise bounces off the roof (+5 hype).', hype: 5 },
+    open: { name: 'Tear off the roof', icon: '🌤️', cost: 5, ok: (v) => v.roof !== 'open', set: { roof: 'open' }, desc: 'Real football weather. Cold-weather teams get their home edge back.' },
+  };
+  S_.canRenovate = (S) => S.phase === 'offseason' || S.phase === 'draft' || S.phase === 'camp';
+  S_.renovate = function (S, key) {
+    const p = S_.PROJECTS[key], v = GI.venueOf(S.user, S);
+    if (!p || !p.ok(v) || S.cash < p.cost || !S_.canRenovate(S)) return false;
+    S.cash -= p.cost; S.fin.events = (S.fin.events || 0) + p.cost;
+    S.stadium = Object.assign({}, S.stadium || {}, p.set);
+    if (p.hype) S.hype = clamp((S.hype || 40) + p.hype, 0, 100);
+    (S.stadiumLog = S.stadiumLog || []).push({ year: S.year, key });
+    S_.save(S);
+    return true;
+  };
+  S_.renameStadium = function (S, name) {
+    name = String(name || '').replace(/[<>]/g, '').trim().slice(0, 28);
+    if (!name) return false;
+    S.stadium = Object.assign({}, S.stadium || {}, { name });
+    S_.save(S); return true;
+  };
+  // home and road records for a team this season
+  S_.splits = function (S, i) {
+    const o = { home: { w: 0, l: 0, t: 0 }, away: { w: 0, l: 0, t: 0 } };
+    (S.schedule || []).forEach((wk) => wk.forEach((g) => {
+      if (!g.done || (g.h !== i && g.a !== i)) return;
+      const k = g.h === i ? 'home' : 'away', us = g.h === i ? g.hs : g.as, them = g.h === i ? g.as : g.hs;
+      if (us > them) o[k].w++; else if (us < them) o[k].l++; else o[k].t++;
+    }));
+    return o;
+  };
   S_.upgradeCost = (S, key) => UPGRADES[key].cost[S.up[key] + 1];
   S_.upgrade = function (S, key) {
     const c = S_.upgradeCost(S, key);
@@ -877,6 +936,9 @@
       const rec = S_.recStr(S.rec[S.user]);
       const loc = g.h === S.user ? 'at home' : `in ${opp.city}`;
       p.sub = m > 0 ? `${ut.city} improves to ${rec} with the win ${loc}.` : m < 0 ? `${ut.city} falls to ${rec} after the loss ${loc}.` : `${ut.city} sits at ${rec} after a stalemate ${loc}.`;
+      const MG = mine.G, wxl = { snow: 'in the snow', rain: 'in a downpour', wind: 'through swirling winds', heat: 'in brutal heat', dome: 'under the roof' }[MG && MG.weather];
+      if (wxl && MG.venue) p.sub += ` Played ${wxl} at ${MG.venue.name}.`;
+      if (MG && MG.weather === 'snow' && (m > 0) && R() < 0.6) p.headline = `${ut.name.toUpperCase()} WIN A SNOW GLOBE GAME`;
       if (c.playoff) {
         p.sub = m > 0 ? (c.ironBowl ? `Champions! ${ut.city} finishes ${rec}.` : `${ut.city} marches on in the playoffs.`) : `A ${rec} season comes to an end.`;
         if (c.ironBowl && m > 0) p.headline = `${ut.name.toUpperCase()} WIN THE IRON-BOWL!`;
