@@ -167,6 +167,18 @@
   S_.salaryTotal = (S, i) => S_.allStars(S, i).reduce((t, s) => t + (s.contract && s.contract.active ? s.contract.salary : 0), 0);
 
   // ================= new franchise =================
+  // Impact Cards: captains stay filled, players who reach 85 earn a card, CPU teams upgrade theirs
+  function impactUpkeep(S, steps) {
+    if (!GI.impact || !isV1(S)) return [];
+    let mine = [];
+    S.rosters.forEach((r, i) => {
+      if (r.v !== 1) return;
+      GI.impact.autoCaptains(r, true);
+      if (i === S.user) { mine = GI.impact.grant(r); GI.impact.slots(r); } else GI.impact.autoTeam(r, null, steps || 0);
+    });
+    return mine;
+  }
+  S_.impactUpkeep = impactUpkeep;
   S_.create = function (o) {
     const S = {
       v: 2, user: o.user, year: 1, weeks: o.weeks || 12, week: 0, qMin: o.qMin || 5, diff: o.diff || 'pro',
@@ -191,6 +203,8 @@
     }
     GI.league.init(S);
     S.cap = 62;
+    S.ip = 4; // Impact Points to start: enough for one early upgrade
+    impactUpkeep(S, 2);
     S.phase = 'camp'; S.draft = null;
     // a little depth on every bench: young backups at the positions that get hurt most
     for (let i = 0; i < 32; i++) ['QB', 'RB', 'WR', 'LB', 'CB'].forEach((pos) => {
@@ -747,6 +761,7 @@
         G.log.filter((l) => l.type === 'star').forEach((l) => highlights.unshift({ text: l.text, game: g, mine: true }));
         const us = g.h === S.user ? g.hs : g.as, them = g.h === S.user ? g.as : g.hs;
         S.seasonStats.gp++; S.seasonStats.pf += us; S.seasonStats.pa += them;
+        if (isV1(S)) { const gain = us > them ? (playoff ? 3 : 2) : 1; S.ip = (S.ip || 0) + gain; S._ipGain = { n: gain, win: us > them, playoff }; }
         // how you do in the elements, all-time
         const wk = G.weather || 'clear';
         S.wxRec = S.wxRec || {};
@@ -861,6 +876,7 @@
       if (winners[0] === S.user) {
         // the Iron-Bowl purse: money for next year's draft
         S.fin.bonus += 15; S.cash += 15; S.records.titles++;
+        if (isV1(S)) { S.ip = (S.ip || 0) + 5; paper.ipTitle = 5; }
         paper.bonus = 15;
         paper.special = 'champs';
         S.hype = clamp((S.hype || 40) + 15, 0, 100);
@@ -929,8 +945,9 @@
         }
       });
     }
-    if (isV1(S)) { GI.dev.anchorLeague(S, 70); GI.dev.fillAll(S); }
+    if (isV1(S)) { GI.dev.anchorLeague(S, 70); GI.dev.fillAll(S); S._newImp = impactUpkeep(S, 1); }
     paper.offseason = true;
+    if (S._newImp && S._newImp.length) { paper.sections = (paper.sections || []).concat([{ title: 'Impact Cards', items: S._newImp.map((c) => `${GI.POS[c.pos].label} ${c.name} earned his Impact Card: <b>${GI.impact.MOVE[c.pos]}</b> (Bronze).`) }]); S._newImp = null; }
     const carousel = GI.league.offseasonLeague(S);
     const review = GI.league.ownerReview(S);
     S.review = review;
@@ -1000,6 +1017,31 @@
       if (us > them) o[k].w++; else if (us < them) o[k].l++; else o[k].t++;
     }));
     return o;
+  };
+  // ---- Impact Cards (the Locker Room) ----
+  const findCard = (S, id) => S_.allStars(S, S.user).find((c) => c.id === id);
+  S_.impUpgrade = function (S, id) {
+    const r = S.rosters[S.user], c = findCard(S, id);
+    if (!c || !GI.impact.eligible(r, c)) return false;
+    const cost = GI.impact.upgradeCost(r, c);
+    if (cost == null || (S.ip || 0) < cost) return false;
+    S.ip -= cost; c.imp = (c.imp || 0) + 1;
+    S_.save(S);
+    return c.imp;
+  };
+  S_.setCaptain = function (S, side, id) {
+    const r = S.rosters[S.user], c = findCard(S, id);
+    if (!c || GI.impact.sideOf(c.pos) !== side || c.unit) return false;
+    r.captains = Object.assign({}, r.captains, { [side]: id });
+    GI.impact.grant(r); GI.impact.slots(r);
+    S_.save(S);
+    return true;
+  };
+  S_.setImpSlots = function (S, ids) {
+    const r = S.rosters[S.user];
+    r.impSlots = ids.slice(0, GI.impact.SLOTS);
+    GI.impact.slots(r);
+    S_.save(S);
   };
   S_.upgradeCost = (S, key) => UPGRADES[key].cost[S.up[key] + 1];
   S_.upgrade = function (S, key) {
@@ -1100,6 +1142,11 @@
       const dev = (S._practice || []).map((x) => `Extra reps paid off: ${GI.POS[x.pos].label} ${x.name} +${x.d} to ${x.rating}`)
         .concat((S._levelUps || []).sort((x, y) => y.d - x.d).map((x) => `${GI.POS[x.pos].label} ${x.name} leveled up: +${x.d} to ${x.rating}`));
       if (dev.length) p.sections.push({ title: 'Player Development', items: dev.slice(0, 8) });
+      const fresh = impactUpkeep(S);
+      const imp = [];
+      if (S._ipGain) { imp.push(`+${S._ipGain.n} Impact Point${S._ipGain.n > 1 ? 's' : ''} for the ${S._ipGain.win ? (S._ipGain.playoff ? 'playoff win' : 'win') : 'effort'}. You have <b>${S.ip}</b> to spend in the Locker Room.`); S._ipGain = null; }
+      fresh.forEach((c) => imp.push(`${GI.POS[c.pos].label} ${c.name} earned his Impact Card: <b>${GI.impact.MOVE[c.pos]}</b> (Bronze).`));
+      if (imp.length) p.sections.push({ title: 'Impact Cards', items: imp });
     }
     if (S._quote) { p.quote = S._quote; S._quote = null; }
     GI.league.weekly(S, p);

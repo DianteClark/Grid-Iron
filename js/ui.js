@@ -200,7 +200,7 @@
   });
 
   // ---------- v1 player cards ----------
-  const TIER_NAME = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', elite: 'Elite', star: 'Star Player' };
+  const TIER_NAME = { bronze: 'Starter', silver: 'Pro', gold: 'Pro Bowl', elite: 'All-Pro', star: 'Star Player' };
   // a jersey in the team's colors: the card's portrait
   function jerseySVG(c1, c2, label, small) {
     const ink = GI.inkOn(c1);
@@ -238,7 +238,8 @@
     const cost = GI.dev ? GI.dev.levelCost(c.rating) : 100;
     const maxed = c.pot && c.rating >= c.pot;
     const xpw = maxed ? 100 : Math.min(100, Math.round(((c.xp || 0) / cost) * 100));
-    const flags = [opts.hurt ? `<span class="cflag red">${esc(opts.hurt)}</span>` : '', opts.bench ? '<span class="cflag">Bench</span>' : '', c.gem ? `<span class="cflag gem">${GI.ico('spark')}Gem</span>` : ''].join('');
+    const im = opts.imp;
+    const flags = [im && im.captain ? '<span class="cflag capt">C</span>' : '', im && im.tier ? `<span class="cflag imp t-${GI.impact.keyOf(im.tier)}">${GI.ico('spark')}${GI.impact.nameOf(im.tier)}</span>` : '', opts.hurt ? `<span class="cflag red">${esc(opts.hurt)}</span>` : '', opts.bench ? '<span class="cflag">Bench</span>' : '', c.gem ? `<span class="cflag gem">${GI.ico('spark')}Gem</span>` : ''].join('');
     const stats = c.stats ? CD.STATS[c.pos].map(([k, n]) => `<span class="cs"><em>${c.stats[k]}</em><small>${n}</small></span>`).join('') : '';
     return `<button class="pcard t-${tier} ${opts.small ? 'sm' : ''} ${opts.hurt ? 'hurt' : ''}" style="--tc:${c1};--tc2:${c2}" ${opts.id ? `data-card="${esc(c.id)}"` : ''} aria-label="${esc(c.name)}, ${GI.POS[c.pos].label}, ${c.rating} overall, ${TIER_NAME[tier]}">
       <span class="pc-bg"></span>
@@ -256,6 +257,41 @@
   function lineupStrip(team, n) {
     const list = (team.stars || []).slice().sort((a, b) => b.rating - a.rating).slice(0, n || 6);
     return `<div class="cstrip">${list.map((c) => cardHTML(c, team, { small: true })).join('')}</div>`;
+  }
+
+  // ---------- Impact Cards ----------
+  // a compact chip: tier band, who, his move and the boost; `c` is a card (+ team for its tier) or a game entry
+  function impChip(c, team, opts) {
+    opts = opts || {};
+    const IM = GI.impact;
+    const tier = opts.tier != null ? opts.tier : team ? IM.tierOf(team, c) : c.tier;
+    const cap = team ? IM.isCaptain(team, c) : c.captain;
+    const tag = c.num != null && !c.unit ? '#' + c.num : GI.POS[c.pos].label;
+    const tc = opts.tc;
+    return `<${opts.btn ? 'button' : 'span'} class="ichip t-${IM.keyOf(tier)} ${opts.on ? 'on' : ''} ${opts.dim ? 'dim' : ''}" ${opts.data || ''}>
+      <span class="ic-tag" ${tc ? `style="background:${tc.c1};color:${GI.inkOn(tc.c1)}"` : ''}>${esc(tag)}</span>
+      <span class="ic-mid"><b>${esc(GI.POS[c.pos].label + ' ' + (c.unit ? c.name : GI.shortName(c.name)))}${cap ? ' <em class="cap">C</em>' : ''}</b><small>${IM.MOVE[c.pos] || ''} · ${tier ? IM.nameOf(tier) + ' +' + IM.pctOf(tier) + '%' : 'No card'}</small></span>
+      ${opts.left != null ? `<span class="ic-left">${'<i></i>'.repeat(opts.left)}${'<i class="u"></i>'.repeat(Math.max(0, IM.USES - opts.left))}</span>` : ''}
+    </${opts.btn ? 'button' : 'span'}>`;
+  }
+  function impTeamHTML(side) {
+    const list = (G.imp && G.imp[side]) || [];
+    const t = G.teams[side];
+    if (!list.length) return '<p class="muted" style="font-size:12.5px;margin:4px 0">No Impact Cards.</p>';
+    return `<div class="ichips">${list.map((c) => impChip(c, null, { tc: teamColors(t), left: c.left })).join('')}</div>`;
+  }
+  function impactFlash(list) {
+    const host = $('#bannerHost');
+    list.forEach((f, i) => {
+      const mine = f.side === G.user;
+      const el = document.createElement('div');
+      el.className = `impflash t-${GI.impact.keyOf(f.tier)} ${mine ? 'mine' : 'theirs'}`;
+      el.style.top = mine ? '29%' : 'calc(29% + 78px)';
+      el.innerHTML = `<small>${mine ? 'Impact Card' : 'Their Impact Card'}${f.captain ? ' · Captain' : ''}</small><b>${esc(GI.shortName(f.name))} · ${GI.impact.MOVE[f.pos]}</b><span>${GI.impact.nameOf(f.tier)} +${GI.impact.pctOf(f.tier)}% · ${f.left} left</span>`;
+      host.appendChild(el);
+      setTimeout(() => el.remove(), 2100);
+    });
+    if (list.some((f) => f.side === G.user)) { sfx('armed'); GI.audio.buzz(25); }
   }
 
   // ---------- title ----------
@@ -555,7 +591,9 @@
     const tr = (s) => (s.traits || []).map((k) => GI.TRAITS[k] ? `<i title="${GI.TRAITS[k].name}">${GI.TRAITS[k].icon}</i>` : '').join('');
     const sl = (t) => `<div class="starlist">${t.stars.map((s) => `<span class="schip ${s.injured ? 'hurt' : ''}"><b>${GI.POS[s.pos].label}</b>${GI.shortName(s.name)} <span class="muted">${s.injured ? 'OUT' : s.rating}</span>${tr(s)}</span>`).join('')}</div>`;
     $('#pgStars').innerHTML = ut.v === 1
-      ? `<h3>🃏 Top cards</h3><div class="label">${esc(ut.name)}</div>${lineupStrip(teamColors(ut), 6)}<div class="label" style="margin-top:12px">${esc(ot.name)}</div>${lineupStrip(ot, 6)}`
+      ? `<h3>🃏 Top cards</h3><div class="label">${esc(ut.name)}</div>${lineupStrip(teamColors(ut), 6)}<div class="label" style="margin-top:12px">${esc(ot.name)}</div>${lineupStrip(ot, 6)}
+        <h3 style="margin-top:16px">${GI.ico('spark')} Impact Cards</h3><p class="muted" style="margin:-2px 0 8px;font-size:12.5px">Each fires ${GI.impact ? GI.impact.USES : 3} times. Tap yours in the play sheet to play it on the next snap that player is part of.</p>
+        <div class="label">${esc(ut.name)}</div>${impTeamHTML(G.user)}<div class="label" style="margin-top:10px">${esc(ot.name)}</div>${impTeamHTML(other(G.user))}`
       : `<h3>★ Star Players</h3><div class="label">${ut.name}</div>${sl(ut)}<div class="label" style="margin-top:12px">${ot.name}</div>${sl(ot)}`;
     const km = !!GI.prefs.get().keyMode;
     $('#pgMode').innerHTML = `<h3>🎮 How do you want to play?</h3><div class="seg" id="modeSeg"><button data-v="0" class="${km ? '' : 'on'}">Every snap</button><button data-v="1" class="${km ? 'on' : ''}">Key moments</button></div>
@@ -690,7 +728,7 @@
   function renderRail() {
     const t = G.teams[G.user];
     const list = t.stars.filter((s) => GI.hasMeter(t, s)).sort((a, b) => GROUP[a.pos] - GROUP[b.pos]);
-    $('#rail').hidden = !list.length; // v1: only Star Players (95+) carry a meter
+    $('#rail').hidden = !list.length; // v1: only Star Players (90+) carry a meter
     let last = -1, html = '';
     list.forEach((s) => {
       const g = GROUP[s.pos];
@@ -796,6 +834,15 @@
     const plays = list.filter((p) => p[key] === cur.id);
     return { tabs: `<div class="ftabs" role="tablist">${tabs}</div><p class="fdesc"><b>${cur.name}</b> · ${cur.desc}</p>`, plays };
   }
+  // the user's Impact Cards for this side of the ball: tap one to play it on the next snap he's part of
+  function impRowHTML(sd) {
+    const list = ((G.imp && G.imp[G.user]) || []).filter((c) => c.side === sd && c.tier > 0);
+    if (!list.length || G.twoPt) return '';
+    const armed = G.impArm && G.impArm[G.user];
+    const a = list.find((c) => c.id === armed);
+    return `<div class="improw">${list.map((c) => impChip(c, null, { btn: true, tc: teamColors(G.teams[G.user]), left: c.left, on: c.id === armed, dim: !c.left, data: `data-imp="${esc(c.id)}" ${c.left ? '' : 'disabled'}` })).join('')}</div>
+      ${a ? `<div class="impnote">${GI.ico('spark')} <b>${esc(GI.shortName(a.name))}</b> is ready: his card fires on the next snap that fits (${GI.impact.FIT_WORD[a.pos]}).</div>` : '<div class="impnote muted">Tap a card to play it this snap.</div>'}`;
+  }
   function renderPanel(n) {
     const cp = $('#callpanel');
     clearTimeout(autoTimer);
@@ -834,7 +881,7 @@
       if (n.userOff) {
         html = `<div class="cp-head"><span class="t">Offense · ${situ}</span>${n.fourth ? '<span class="pill red">4th down</span>' : `<span class="pill">${GI.spotLabel(G)}</span>`}</div>${toolHTML}${G.twoPt ? '' : tendHTML()}<div class="grid">`;
         const bk = tabsHTML('off');
-        html = html.replace(/<div class="grid">$/, bk.tabs + '<div class="grid">');
+        html = html.replace(/<div class="grid">$/, impRowHTML('o') + bk.tabs + '<div class="grid">');
         html += bk.plays.map((p) => playBtn(p, 'off')).join('');
         html += `<button class="play coachc wide" data-act="coach">${icon('dice')}<span>Coach's Call</span><small>OC picks from the whole book</small></button>`;
         if (n.fourth) html += `<div class="half"><button class="play sp" data-act="punt">${icon('punt')}<span>Punt</span></button><button class="play sp" data-act="fg" ${n.fgPct < 3 ? 'disabled' : ''}>${icon('fg')}<span>Field Goal</span><small>${n.fgDist} yds · ${n.fgPct}%</small></button></div>`;
@@ -852,13 +899,18 @@
         }
       } else {
         const bk = tabsHTML('def');
-        html = `<div class="cp-head"><span class="t">Defense · ${situ}</span><span class="pill">${GI.spotLabel(G)}</span></div>${toolHTML}${G.twoPt ? '' : tendHTML()}${bk.tabs}<div class="grid">` + bk.plays.map((p) => playBtn(p, 'def')).join('')
+        html = `<div class="cp-head"><span class="t">Defense · ${situ}</span><span class="pill">${GI.spotLabel(G)}</span></div>${toolHTML}${G.twoPt ? '' : tendHTML()}${impRowHTML('d')}${bk.tabs}<div class="grid">` + bk.plays.map((p) => playBtn(p, 'def')).join('')
           + `<button class="play coachc wide" data-act="dcoach">${icon('dice')}<span>Coach's Call</span><small>DC picks from the whole book</small></button></div>`;
       }
     }
     setStatus(null);
     cp.innerHTML = html;
     openSheet(true);
+    cp.querySelectorAll('[data-imp]').forEach((b) => (b.onclick = () => {
+      G.impArm = G.impArm || {};
+      G.impArm[G.user] = G.impArm[G.user] === b.dataset.imp ? null : b.dataset.imp;
+      sfx(G.impArm[G.user] ? 'armed' : 'tap'); GI.save(G); renderPanel(n);
+    }));
     cp.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { bookTab[b.dataset.kind] = b.dataset.tab; sfx('tap'); renderPanel(n); }));
     cp.querySelectorAll('[data-call]').forEach((b) => (b.onclick = () => !busy && doStep({ type: 'play', call: b.dataset.call })));
     cp.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => {
@@ -1042,6 +1094,7 @@
     collectReel(res);
     try {
       if (res.kind === 'setup2') toast('Going for two! Pick a play.', 1500);
+      if (res.impact && SPEEDS[speedIdx] < 99) impactFlash(res.impact);
       await field.runPlay(res, G);
       if (res.matrix != null && SPEEDS[speedIdx] < 99) reveal(res);
       if (res.banner) {
@@ -1117,6 +1170,7 @@
       tag = { 2: '<span class="pill green">Beat it</span>', 1: '<span class="pill green" style="opacity:.75">Edge</span>', 0: '<span class="pill">Even</span>', '-1': '<span class="pill red" style="opacity:.75">Tough</span>', '-2': '<span class="pill red">Countered</span>' }[m];
       if (res.potw) tag += '<span class="pill gold">POTW</span>';
       if (res.cpuPotw) tag += '<span class="pill red">Their POTW</span>';
+      (res.impact || []).forEach((f) => (tag += `<span class="pill ${f.side === G.user ? 'gold' : 'red'}">${f.side === G.user ? 'Impact' : 'Their Impact'}</span>`));
       if (res.predictable) tag += '<span class="pill red">Predictable</span>';
     }
     $('#ticker').innerHTML = `<span class="txt">${res.text}</span>${tag ? `<span class="tags">${tag}</span>` : ''}`;
@@ -1423,7 +1477,7 @@
       <p>Build a <b>Franchise</b> (drafts, contracts, trades, the Iron-Bowl) or jump into an <b>Exhibition</b>. Talent comes first: the better team wins most of the time, so building your roster is how you win. Good play-calling is how you steal the close ones.</p>
       <h3>🧠 The playbook</h3><p>Twelve plays in four <b>formations</b> (I-Form, Shotgun, Singleback, Trick Bag) and twelve calls in four <b>defensive packages</b> (4-3, Nickel, Dime, Blitz). Switch with the tabs on the play sheet. Every play has <b>exactly one</b> call that shuts it down and one it carves up. After every snap you see <b>what they called and why</b>. The play sheet shows their <b>tendencies</b>; the Gazette's <b>scouting report</b> sometimes leaks their go-to play. Read it, then call the counter.</p>${chartHTML()}
       <p>Down & distance matter: on 3rd & long they expect a pass (runs catch them napping); short yardage favors power runs and play-action shots; the red zone squeezes deep balls. Call the same play 3 snaps in a row and you get <b>read</b>.</p>
-      <h3>⏱ The clock</h3><p>The clock keeps running between snaps. Late in a half you get <b>timeouts</b> (3 per half), <b>hurry-up</b>, <b>spike</b> and <b>kneel</b>. There's a two-minute warning in the 2nd and 4th quarters.</p>
+      <h3>⚡ Impact Cards</h3><p>Players rated 80+ and your two <b>captains</b> carry an Impact Card. Bring 5 to a game; tap one in the play sheet and it fires on the next snap that player is part of, raising the odds the play works (Bronze +5% up to Elite +20%). Each fires 3 times a game. Upgrade them in the Locker Room with Impact Points earned by playing. Cards rated 90+ overall are <b>Star Players</b> with a Show-Me meter.</p><h3>⏱ The clock</h3><p>The clock keeps running between snaps. Late in a half you get <b>timeouts</b> (3 per half), <b>hurry-up</b>, <b>spike</b> and <b>kneel</b>. There's a two-minute warning in the 2nd and 4th quarters.</p>
       <h3>🌊 Momentum</h3><p>Touchdowns, turnovers, sacks and star plays swing the momentum bar under the clock. Whoever has it plays a little better and the home crowd gets louder.</p>
       <h3>⭐ Star rail</h3><p>Your stars' rings fill as they make plays. At 100% a star catches fire 🔥 — arm him (or let <b>auto-arm</b> do it) and he takes over the next play where he matters. Two bad plays in a row while on fire cools him to 70%. Big moments get a slow-motion replay.</p>
       <h3>🏟️ Stadiums & weather</h3><p>Every team has a home: <b>domes</b> keep the weather out and the noise in, <b>retractable roofs</b> close when it turns ugly, and open-air parks get the climate — snow up north late in the year, heat down south early. <b>Turf</b> is fast (outside runs and deep balls get a lift); <b>grass</b> gets sloppy in rain and snow; <b>thin air</b> carries kicks and wears visitors down. The Iron-Bowl is at a neutral site. In franchise mode you can renovate and rename your building.</p>
@@ -1438,7 +1492,7 @@
 
   // shared with the other UI files
   GI.UI = {
-    $, $$, esc, show, toast, modal, closeModal, closeBtn, confirmBox, helmet, sfx, icon, sleep, ord, T, flushRewards, cardHTML, lineupStrip,
+    $, $$, esc, show, toast, modal, closeModal, closeBtn, confirmBox, helmet, sfx, icon, sleep, ord, T, flushRewards, cardHTML, lineupStrip, impChip,
     money: (x) => SN.money(x), showPaper, showArchive, startPregame, refreshTitle, showSettings, showHelp,
     getS: () => S, setS: (x) => (S = x), getG: () => G, setG: (x) => (G = x), getField: () => field,
   };

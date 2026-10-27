@@ -134,7 +134,11 @@
     });
     GI.assignRoles(stars);
     const team = { idx: i, city, name, abbr, c1, c2, glyph: id.glyph || (GI.TEAM_GLYPH ? GI.TEAM_GLYPH[i] : null), slots: stars.map((s) => s.pos), stars: stars.filter((s) => s.role), base: Object.assign({}, data.base), coaches: JSON.parse(JSON.stringify(data.coaches)), identity: data.identity || null, college: !!id.college };
-    if (stars.some((s) => s.stats)) { team.v = 1; team.benchList = (data.benchList || []).map((b) => Object.assign({}, b, { injured: false, armed: false })); }
+    if (stars.some((s) => s.stats)) {
+      team.v = 1; team.benchList = (data.benchList || []).map((b) => Object.assign({}, b, { injured: false, armed: false }));
+      if (data.captains) team.captains = Object.assign({}, data.captains);
+      if (data.impSlots) team.impSlots = data.impSlots.slice();
+    }
     if (data.bench) team.bench = Object.assign({}, data.bench, { meter: ri(10, 30), armed: false, injured: false });
     team.ovr = GI.ratings(team).ovr;
     return team;
@@ -157,7 +161,7 @@
 
   GI.shortName = (n) => { const p = n.split(' '); return p[0][0] + '. ' + p.slice(1).join(' '); };
   GI.starAt = (team, role) => { const r = GI.unitRole ? GI.unitRole(role) : role; return team.stars.find((s) => s.role === r && !s.injured); };
-  // v1: only Star Players (95+) carry a Show-Me meter; older star teams: everyone does
+  // v1: only Star Players (90+) carry a Show-Me meter; older star teams: everyone does
   const hasMeter = (t, s) => t.v !== 1 || s.star;
   GI.hasMeter = hasMeter;
   const GENERIC = { QB: 'the QB', RB: 'the RB', WR1: 'the X receiver', WR2: 'the Z receiver', WR3: 'the slot', TE: 'the tight end', MLB: 'the Mike', WLB: 'the Will', SLB: 'the Sam', FS: 'the free safety', SS: 'the strong safety', CB1: 'the corner', CB2: 'the corner', DE1: 'the end', DE2: 'the end', DT1: 'the tackle', DT2: 'the tackle', K: 'the kicker', KR: 'the returner' };
@@ -198,6 +202,7 @@
         }
       }
       t.stars = t.stars.filter((st) => st.role);
+      if (t.v === 1 && GI.impact && !t.captains) GI.impact.autoTeam(t);
     });
     if (o.starMeter) ['home', 'away'].forEach((s) => teams[s].stars.forEach((st) => { if (o.starMeter[st.id] != null) st.meter = o.starMeter[st.id]; }));
     const morale = {};
@@ -218,6 +223,7 @@
       ps: {}, cpuLog: [], drive: { plays: 0, side: firstRecv }, rivalry: o.rivalry || null, book: o.book || null, brokeRec: {},
       career: o.career || null, keyMode: !!o.keyMode, quick: !!o.quick, hurtIds: o.hurt || [], careerBase: o.careerBase || null,
       venue, neutral: !!venue.neutral, roofNote: roof.note, outside: rolled, flow: [], effExtra: o.effExtra || null,
+      imp: GI.impact ? { home: GI.impact.forGame(teams.home), away: GI.impact.forGame(teams.away) } : null, impArm: { home: null, away: null },
     };
     if (o.potwLeft) G.potwLeft = Object.assign({}, o.potwLeft);
     G.edge = buildEdges(G, o.edges || {});
@@ -907,6 +913,12 @@
     if (G.weather === 'heat' && G.q >= 4) a += (ro.ovr - rd.ovr) / 40;
     a += (P === G.user ? -1 : 1) * DIFF_ADV[G.diff];
     a += BAL.off || 0; // v1: a small league-wide lean to the offense (no more Show-Me fireworks on every roster)
+    // Impact Cards: a player's card fires on a snap he's part of
+    if (GI.impact && G.imp && !G.twoPt) {
+      const ip = GI.impact.onSnap(G, P, D, off);
+      if (ip.fired.length) { a += ip.a; res.impact = ip.fired; ip.fired.forEach((f) => { if (f.captain) swing(G, f.side, 4); }); }
+    }
+    if (GI.BAL.testA) a += GI.BAL.testA;
     a += gauss(0, BAL.noise);
     a = clamp(a, -4, 4);
     res.adv = a;

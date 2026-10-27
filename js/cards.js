@@ -20,11 +20,11 @@
     KP: [['leg', 'Leg'], ['acc', 'Accuracy'], ['hang', 'Hang time']],
   };
   const TIERS = [
-    { key: 'bronze', name: 'Bronze', min: 0 },
-    { key: 'silver', name: 'Silver', min: 70 },
-    { key: 'gold', name: 'Gold', min: 80 },
-    { key: 'elite', name: 'Elite', min: 90 },
-    { key: 'star', name: 'Star Player', min: 95 },
+    { key: 'bronze', name: 'Starter', min: 0 },
+    { key: 'silver', name: 'Pro', min: 70 },
+    { key: 'gold', name: 'Pro Bowl', min: 78 },
+    { key: 'elite', name: 'All-Pro', min: 85 },
+    { key: 'star', name: 'Star Player', min: 90 },
   ];
   const LINE_NAMES = {
     OL: ['The Hog Pen', 'Big Uglies', 'The Wall', 'Pancake House', 'Iron Five', 'The Moving Company', 'Trench Kings', 'Brick House', 'The Fortress', 'Steel Front'],
@@ -43,12 +43,13 @@
       return Math.round(stats[k[0]] * 0.4 + stats[k[1]] * 0.35 + stats[k[2]] * 0.25);
     },
     tierOf(ovr) { let t = TIERS[0]; TIERS.forEach((x) => { if (ovr >= x.min) t = x; }); return t; },
-    isStar: (c) => (c.rating || 0) >= 95,
+    STAR: 90,
+    isStar: (c) => (c.rating || 0) >= 90,
     // recompute everything derived from the stats
     refresh(card) {
       card.rating = C.ovrOf(card.stats, card.pos);
       card.tier = C.tierOf(card.rating).key;
-      card.star = card.rating >= 95;
+      card.star = card.rating >= 90;
       return card;
     },
     // stats spread around a target overall; shape varies so two 75s aren't identical
@@ -168,7 +169,7 @@
           if (!d) break;
           for (const k in c.stats) c.stats[k] = clamp(c.stats[k] + Math.sign(d), 35, 99);
         }
-        c.tier = C.tierOf(c.rating).key; c.star = c.rating >= 95; c.unit = c.pos === 'OL' || c.pos === 'DL';
+        c.tier = C.tierOf(c.rating).key; c.star = c.rating >= 90; c.unit = c.pos === 'OL' || c.pos === 'DL';
       }));
     },
     label(c) { return c.unit ? `${GI.POS[c.pos].label} · ${c.name}` : c.name; },
