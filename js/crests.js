@@ -104,30 +104,8 @@
       <g clip-path="url(#${id})"><path d="M0 0h60v134H0z" fill="#fff" opacity=".08"></path><path d="${SHIELD}" fill="none" stroke="${c2}" stroke-width="7"></path></g>
       <g transform="translate(25 ${ribbon ? 20 : 26}) scale(.7)">${GI.glyphSVG(glyph, ink, c1)}</g>
       ${ribbon ? `<path d="M8 96h104l-8 9 8 9H8l8-9z" fill="#fff"></path><path d="M12 99h96l-6 6 6 6H12l6-6z" fill="${c2}"></path>
-      <text x="60" y="105.5" text-anchor="middle" dominant-baseline="central" font-family="Lilita One, Arial Rounded MT Bold, sans-serif" font-size="13" letter-spacing="1.5" fill="${GI.inkOn(c2)}">${label}</text>` : ''}
+      <text x="60" y="105.5" text-anchor="middle" dominant-baseline="central" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-weight="800" font-style="italic" font-size="14" letter-spacing="1" fill="${GI.inkOn(c2)}">${label}</text>` : ''}
     </svg>`;
   };
 
-  // ---------- chunky toy helmet (logo / app icon) ----------
-  GI.chunkyHelmetSVG = function (c1, c2, cls) {
-    const shell = 'M14 70C8 36 34 12 64 12c30 0 48 22 46 48v4H82c-5 0-8 4-8 8v14c0 6-4 10-10 10H36C24 96 16 86 14 70z';
-    const face = 'M78 66h32c1 12-3 22-10 28H78z';
-    const mask = 'M74 66h40M74 86h32M112 66c1 8-1 16-6 22';
-    const id = 'ch' + (++uid);
-    return `<svg class="${cls || ''}" viewBox="0 0 126 108" role="img" aria-label="Grid Iron helmet">
-      <defs><clipPath id="${id}"><path d="${shell}"></path></clipPath></defs>
-      <g transform="translate(4 6)" opacity=".22"><path d="${shell}" fill="#000"></path><path d="${mask}" stroke="#000" stroke-width="15" stroke-linecap="round" fill="none"></path></g>
-      <path d="${shell}" fill="#fff" stroke="#fff" stroke-width="12" stroke-linejoin="round"></path>
-      <path d="${face}" fill="#fff" stroke="#fff" stroke-width="12" stroke-linejoin="round"></path>
-      <path d="${face}" fill="#2b2e35"></path>
-      <path d="${shell}" fill="${c1}"></path>
-      <g clip-path="url(#${id})"><path d="M0 82c34 12 80 12 126-2v30H0z" fill="#000" opacity=".16"></path>
-        <path d="M24 34C40 14 72 8 100 26" stroke="#fff" stroke-width="20" fill="none"></path><path d="M24 34C40 14 72 8 100 26" stroke="${c2}" stroke-width="12" fill="none"></path></g>
-      <ellipse cx="40" cy="34" rx="12" ry="6.5" transform="rotate(-32 40 34)" fill="#fff" opacity=".6"></ellipse>
-      <path transform="translate(46 58) scale(.1)" d="M0-120 35-48 115-37 57 19 71 99 0 61-71 99-57 19-115-37-35-48z" fill="#ffc93c" stroke="#fff" stroke-width="26" stroke-linejoin="round" paint-order="stroke"></path>
-      <path d="${mask}" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
-      <path d="${mask}" stroke="#454a53" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
-      <path d="M76 64.5h34" stroke="#fff" stroke-opacity=".35" stroke-width="2.4" stroke-linecap="round"></path>
-    </svg>`;
-  };
 })();

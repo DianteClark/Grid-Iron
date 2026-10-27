@@ -4,9 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
   <title>Grid Iron</title>
-  <meta name="description" content="Grid Iron — a sticker-style football franchise sim.">
-  <meta name="theme-color" content="#f3eee3" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#17191e" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Grid Iron — a broadcast-style football franchise sim.">
+  <meta name="theme-color" content="#090e1a">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
@@ -17,7 +16,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;0,900;1,800;1,900&family=Barlow:wght@500;600;700;800&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -29,7 +28,7 @@
       <div class="logo">
         <div class="hero" id="logoHelmet"></div>
         <h1>GRID<span>IRON</span></h1>
-        <p>Sticker-sized football. Big-time drama.</p>
+        <p>Prime-time football in your pocket</p>
       </div>
       <div class="menu">
         <div id="seasonCard"></div>
@@ -45,7 +44,7 @@
           <button class="btn ghost small" id="btnSettings">⚙ Settings</button>
         </div>
       </div>
-      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.5 · Career, Legacy & League Life · Add to your Home Screen to play like an app</p>
+      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.6 · Prime Time · Add to your Home Screen to play like an app</p>
     </div>
   </section>
 
@@ -120,6 +119,14 @@
       <button class="ticker" id="ticker" aria-label="Open play-by-play"><span class="txt muted">Welcome to the game.</span></button>
       <div id="callpanel"></div>
     </div>
+    <nav class="tabbar" id="gbar" aria-label="Game controls">
+      <button class="gb" id="gbPause"><span>❚❚</span>Pause</button>
+      <button class="gb" id="gbSpeed"><span>▶</span>1x</button>
+      <button class="gb" id="gbCam"><span>⛶</span>Wide</button>
+      <button class="gb" id="gbTac"><span>▦</span>Tactics</button>
+      <button class="gb" id="gbStats"><span>☰</span>Stats</button>
+      <button class="gb" id="gbKey"><span>⚡</span>Key</button>
+    </nav>
   </section>
 
   <!-- CAREER GAME (key moments) -->

@@ -1,5 +1,5 @@
 /* Grid Iron service worker: offline play + quick updates */
-const VERSION = 'gridiron-v0.5.0';
+const VERSION = 'gridiron-v0.6.0';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'js/data.js', 'js/sim.js', 'js/crests.js', 'js/season.js', 'js/league.js', 'js/legacy.js', 'js/career.js', 'js/audio.js', 'js/anim.js', 'js/ui.js', 'js/ui-franchise.js', 'js/ui-extra.js',

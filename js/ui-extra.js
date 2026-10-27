@@ -310,7 +310,10 @@
   }
   function csb() {
     const m = cg.moments[Math.min(cg.cur, cg.moments.length - 1)];
-    $('#csb').innerHTML = `<div class="sb-team l">${helmet(cg.mine, 'sm')}<span class="score">${cg.us}</span></div><div class="sb-mid"><div class="clk">${cg.cur < cg.moments.length ? GI.qLabel(m.q) + ' ' + GI.clockStr(m.clock) : 'FINAL'}</div><div class="dd">${esc(cg.label)} · moment ${Math.min(cg.cur + 1, cg.moments.length)}/${cg.moments.length}</div></div><div class="sb-team r">${helmet(cg.opp, 'sm', { flip: true })}<span class="score">${cg.them}</span></div>`;
+    const side = (t, cls, me) => { const p = [`<b>${esc(t.abbr)}</b>`, `<i style="background:${t.c1};box-shadow:0 0 0 1px ${t.c2}55"></i>`]; return `<div class="sb-t ${cls} ${me ? 'me' : ''}">${(cls === 'l' ? p : p.reverse()).join('')}</div>`; };
+    const live = cg.cur < cg.moments.length;
+    $('#csb').innerHTML = `<div class="sb-main">${side(cg.mine, 'l', true)}<div class="sb-score"><span>${cg.us}</span><em>-</em><span>${cg.them}</span></div>${side(cg.opp, 'r')}</div>
+      <div class="sb-sub"><span class="dd">${esc(cg.label)} · ${live ? GI.qLabel(m.q) + ' ' + GI.clockStr(m.clock) : 'Final'} · moment ${Math.min(cg.cur + 1, cg.moments.length)}/${cg.moments.length}</span></div>`;
   }
   function careerInsets() {
     const gm = $('#cgame'), W = gm.clientWidth, H = gm.clientHeight, ps = $('#psheet2'), sb = $('#csb');

@@ -109,7 +109,7 @@
     if (!cands.length || R() < 0.25) return L.newCoach(S, key);
     return cands.slice(0, 5)[ri(0, Math.min(4, cands.length - 1))];
   }
-  const overlap = (a, b) => a.team === b.team && a.key !== 'player' + 'x' && a.from <= (b.to == null ? 1e9 : b.to) && b.from <= (a.to == null ? 1e9 : a.to);
+  const overlap = (a, b) => a.team === b.team && a.from <= (b.to == null ? 1e9 : b.to) && b.from <= (a.to == null ? 1e9 : a.to);
   function workedWith(c1, c2) {
     if (!c1 || !c2 || c1.id === c2.id) return null;
     for (const a of c1.hist || []) for (const b of c2.hist || []) if ((a.to != null || b.to != null) && overlap(a, b)) return a.team;

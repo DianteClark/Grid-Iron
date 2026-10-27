@@ -15,21 +15,20 @@
   let speedIdx = P.speedIdx || 0;
   const SPEEDS = [1, 2, 99], SPEED_LABEL = ['1×', '2×', '⏭'];
   const ord = (n) => ['', '1st', '2nd', '3rd', '4th'][n] || n + 'th';
-  const tilt = (i) => ((i * 37) % 7 - 3) * 0.6;
   const T = (i) => GI.TEAMS[i];
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   // ---------- theme ----------
   function applyTheme() {
     const t = GI.prefs.get().theme || 'auto';
-    if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+    if (t !== 'light') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', t);
   }
   applyTheme();
 
   function helmet(t, cls, opts) { return GI.crestSVG(t, cls, opts); } // team identity = shield crest
   GI.helmetSVG = helmet;
-  $('#logoHelmet').innerHTML = GI.chunkyHelmetSVG('#ff5a4e', '#1d3557', 'hero-helm');
+  $('#logoHelmet').innerHTML = '<img src="icons/favicon.svg" alt="" width="200" height="200">';
 
   // ---------- play icons ----------
   const A = 'stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"';
@@ -161,10 +160,10 @@
     $$('#settings [data-only]').forEach((r) => (r.style.display = r.dataset.only === setup.mode ? '' : 'none'));
     const sel = opp ? setup.opp : setup.user;
     let html = '';
-    if (opp || setup.mode === 'season') html += `<button class="tcard ${sel === -1 ? 'sel' : ''}" data-i="-1" style="transform:rotate(${tilt(99)}deg)">${helmet({ c1: '#1d1d1f', c2: '#ffc93c', abbr: '?', city: '', name: 'Random', glyph: 'dice' }, 'md')}<div class="nm">Random<br>${opp ? 'Opponent' : 'Team'}</div></button>`;
+    if (opp || setup.mode === 'season') html += `<button class="tcard ${sel === -1 ? 'sel' : ''}" data-i="-1">${helmet({ c1: '#1d1d1f', c2: '#ffc93c', abbr: '?', city: '', name: 'Random', glyph: 'dice' }, 'md')}<div class="nm">Random<br>${opp ? 'Opponent' : 'Team'}</div></button>`;
     GI.TEAMS.forEach((t, i) => {
       const dis = opp && i === setup.user;
-      html += `<button class="tcard ${sel === i ? 'sel' : ''} ${dis ? 'dis' : ''}" data-i="${i}" style="transform:rotate(${tilt(i)}deg)">${setup.mode === 'season' ? '' : `<span class="ovr">${t.ovr}</span>`}${helmet(t, 'md')}<div class="nm">${t.city}<br>${t.name}</div></button>`;
+      html += `<button class="tcard ${sel === i ? 'sel' : ''} ${dis ? 'dis' : ''}" data-i="${i}">${setup.mode === 'season' ? '' : `<span class="ovr">${t.ovr}</span>`}${helmet(t, 'md')}<div class="nm">${t.city}<br>${t.name}</div></button>`;
     });
     $('#teamGrid').innerHTML = html;
     $$('#teamGrid .tcard').forEach((c) => (c.onclick = () => {
@@ -261,14 +260,13 @@
         <div class="cf-roster">${roster.map((s) => `<span>${GI.POS[s.pos].label} ${esc(s.name)}</span>`).join('')}</div>
         ${S.reel && S.reel.length ? '<button class="btn gold small" id="gz-reel">▶ Watch the season highlight reel</button>' : ''}</div>`;
     }
-    const lot = p.lottery ? '' : '';
     return `<header class="mast"><div class="mast-top"><span>Vol. ${p.year}</span><span>${p.label}</span><span>${champs ? 'Collector’s Edition' : '25¢'}</span></div>
         <h1>The Grid-Iron Gazette</h1><div class="mast-rule">★ ALL THE FOOTBALL THAT'S FIT TO PRINT ★</div></header>
       ${champs ? '<div class="cf-banner">CHAMPIONS</div>' : ''}
       <h2 class="headline">${p.headline || 'QUIET WEEK AROUND THE LEAGUE'}</h2>
       ${p.score ? `<div class="scoreline">${p.score}</div>` : ''}
       ${p.sub ? `<p class="deck">${p.sub}</p>` : ''}
-      ${champHTML}${photo}${notes}${quote}${evHTML}${lot}
+      ${champHTML}${photo}${notes}${quote}${evHTML}
       ${(p.sections || []).length ? `<div class="secs">${p.sections.filter((x) => x.items && x.items.length).map((x) => `<section><h4>${x.title}</h4><ul class="inj">${x.items.map((i) => `<li>${i}</li>`).join('')}</ul></section>`).join('')}</div>` : ''}
       ${power}
       ${(p.scores || []).length ? `<div class="cols">
@@ -375,6 +373,8 @@
       window.addEventListener('resize', () => setTimeout(updateInsets, 60));
     }
     field.speed = SPEEDS[speedIdx];
+    field.wide = !!GI.prefs.get().wide; field.redraw();
+    renderSB.last = null;
     field.setTeams(teamColors(G.teams[G.user]), G.teams[other(G.user)]);
     field.setWeather(G.weather);
     G.crazyLog = G.crazyLog || {};
@@ -391,7 +391,7 @@
   function updateInsets() {
     if (!field) return;
     const gm = $('#game'), W = gm.clientWidth, H = gm.clientHeight;
-    const sb = $('#sb'), rail = $('#rail');
+    const sb = $('#sb'), rail = $('#rail'), bar = $('#gbar');
     const ps = $('#psheet'), open = ps.classList.contains('open');
     const landscape = W > H * 1.08 && W >= 560;
     rail.style.top = (landscape ? sb.offsetTop : sb.offsetTop + sb.offsetHeight + 6) + 'px';
@@ -399,12 +399,12 @@
     $('#railPop').style.top = (railBottom + 6) + 'px';
     ps.style.top = landscape ? (railBottom + 8) + 'px' : '';
     const st = $('#status');
-    const ins = { top: landscape ? sb.offsetTop + sb.offsetHeight + 6 : railBottom + 6, bottom: 0, right: 0 };
+    const ins = { top: landscape ? sb.offsetTop + sb.offsetHeight + 6 : railBottom + 6, bottom: H - bar.offsetTop + 4, right: 0 };
     if (open) {
       if (landscape) ins.right = W - ps.offsetLeft + 4; else ins.bottom = H - ps.offsetTop + 4;
-    } else if (!st.hidden) ins.bottom = H - st.offsetTop + 4;
+    } else if (!st.hidden) ins.bottom = Math.max(ins.bottom, H - st.offsetTop + 4);
     field.setInsets(ins);
-    const tip = $('.coachtip'); if (tip) tip.style.bottom = (open && !landscape ? H - ps.offsetTop + 10 : 16) + 'px';
+    const tip = $('.coachtip'); if (tip) tip.style.bottom = (open && !landscape ? H - ps.offsetTop + 10 : H - bar.offsetTop + 10) + 'px';
   }
   function openSheet(on) { $('#psheet').classList.toggle('open', on); updateInsets(); }
   function setStatus(txt) {
@@ -415,37 +415,56 @@
 
   function renderSB() {
     const sideHTML = (s, cls) => {
-      const t = G.teams[s];
+      const t = teamColors(G.teams[s]);
       const hasBall = (G.phase === 'play' || G.phase === 'pat') && G.poss === s;
-      const hot = s !== G.user ? t.stars.filter((x) => !x.injured && (x.meter >= 100 || x.armed)).length : 0;
-      const tos = [0, 1, 2].map((k) => `<i class="${k < G.to[s] ? 'on' : ''}"></i>`).join('');
-      return `<div class="sb-team ${cls}">${helmet(teamColors(t), 'sm', { flip: cls === 'r' })}<span class="poss ${hasBall ? 'on' : ''}"></span><span class="score">${G.score[s]}<span class="tos" aria-label="${G.to[s]} timeouts">${tos}</span></span>${hot ? `<span class="opphot" title="${t.abbr} stars on fire">🔥${hot > 1 ? hot : ''}</span>` : ''}</div>`;
+      const bar = `<i style="background:${t.c1};box-shadow:0 0 0 1px ${t.c2}55"></i>`;
+      const parts = [`<span class="poss ${hasBall ? 'on' : ''}"></span>`, `<b>${esc(t.abbr)}</b>`, bar];
+      return `<div class="sb-t ${cls} ${s === G.user ? 'me' : ''}">${(cls === 'l' ? parts : parts.reverse()).join('')}</div>`;
     };
+    const tosFor = (s) => `<span class="tos" aria-label="${G.to[s]} timeouts">${[0, 1, 2].map((k) => `<i class="${k < G.to[s] ? 'on' : ''}"></i>`).join('')}</span>`;
+    const opp = other(G.user);
+    const hot = G.teams[opp].stars.filter((x) => !x.injured && (x.meter >= 100 || x.armed)).length;
     let dd;
-    if (G.over) dd = 'FINAL';
-    else if (G.phase === 'kickoff') dd = 'KICKOFF';
-    else if (G.phase === 'pat') dd = 'EXTRA POINT';
-    else if (G.twoPt) dd = '2-PT TRY';
+    if (G.over) dd = 'Final';
+    else if (G.phase === 'kickoff') dd = 'Kickoff';
+    else if (G.phase === 'pat') dd = 'Extra point';
+    else if (G.twoPt) dd = '2-pt try';
     else dd = `${ord(G.down)} & ${G.ballOn + G.toGo >= 100 ? 'Goal' : G.toGo} · ${GI.spotLabel(G)}`;
     const W = GI.WEATHER[G.weather];
     const running = G.runoff > 0 && !G.over;
-    const clk = G.over ? 'FINAL' : GI.qLabel(G.q) + ' ' + GI.clockStr(running ? GI.clockLeft(G) : G.clock);
-    const ha = G.teams.away, hh = G.teams.home;
+    const ha = teamColors(G.teams.away), hh = teamColors(G.teams.home);
     const pos = 50 + (G.mom || 0) / 2;
-    $('#sb').innerHTML = `<button class="sb-btn" id="btnMenu" aria-label="Menu">☰</button>` + sideHTML('away', 'l') +
-      `<div class="sb-mid"><div class="clk">${running ? '<span class="run">▶</span>' : ''}${clk}</div><div class="dd">${dd} ${W.icon}</div>
-        <div class="mom" title="Momentum" style="--ca:${teamColors(ha).c1};--ch:${teamColors(hh).c1}"><i style="left:${pos}%"></i></div></div>` +
-      sideHTML('home', 'r') + `<button class="sb-btn" id="btnSpeed" aria-label="Animation speed">${SPEED_LABEL[speedIdx]}</button>`;
-    $('#btnMenu').onclick = (e) => { e.stopPropagation(); showMenu(); };
-    $('#btnSpeed').onclick = (e) => {
-      e.stopPropagation();
-      speedIdx = (speedIdx + 1) % SPEEDS.length;
-      field.speed = SPEEDS[speedIdx];
-      e.currentTarget.textContent = SPEED_LABEL[speedIdx];
-      GI.prefs.set({ speedIdx });
-      toast(['Normal speed', 'Fast speed', 'Skip animations'][speedIdx], 1000);
-    };
+    const prev = renderSB.last || {};
+    const bumpA = prev.away != null && prev.away !== G.score.away, bumpH = prev.home != null && prev.home !== G.score.home;
+    renderSB.last = { away: G.score.away, home: G.score.home };
+    $('#sb').innerHTML = `<div class="sb-main">${sideHTML('away', 'l')}
+      <div class="sb-score"><span class="${bumpA ? 'bump' : ''}">${G.score.away}</span><em>-</em><span class="${bumpH ? 'bump' : ''}">${G.score.home}</span></div>
+      ${sideHTML('home', 'r')}
+      <div class="sb-clock ${running ? 'run' : ''}">${G.over ? 'FINAL' : GI.clockStr(running ? GI.clockLeft(G) : G.clock)}${G.over ? '' : `<small>${GI.qLabel(G.q)}</small>`}</div></div>
+      <div class="sb-sub">${tosFor('away')}<span class="dd">${dd} ${W.icon}${hot ? ` <span class="opphot" title="${esc(G.teams[opp].abbr)} stars on fire">🔥${hot > 1 ? hot : ''}</span>` : ''}</span>${tosFor('home')}</div>
+      <div class="mom" title="Momentum" style="--ca:${ha.c1};--ch:${hh.c1}"><i style="left:${pos}%"></i></div>`;
+    renderBar();
   }
+
+  // ---------- bottom tab bar ----------
+  function renderBar() {
+    const sp = $('#gbSpeed'); if (!sp) return;
+    sp.innerHTML = `<span>${['▶', '▶▶', '⏭'][speedIdx]}</span>${['1x', '2x', 'Skip'][speedIdx]}`;
+    $('#gbCam').innerHTML = `<span>${field && field.wide ? '⊙' : '⛶'}</span>${field && field.wide ? 'Close' : 'Wide'}`;
+    const k = $('#gbKey'); k.classList.toggle('hot', !!G.keyMode); k.innerHTML = `<span>⚡</span>${G.keyMode ? 'Key: On' : 'Key'}`;
+  }
+  const tap = (id, fn) => { $(id).onclick = (e) => { e.stopPropagation(); sfx('tap'); fn(); }; };
+  tap('#gbPause', () => showMenu());
+  tap('#gbSpeed', () => {
+    speedIdx = (speedIdx + 1) % SPEEDS.length;
+    field.speed = SPEEDS[speedIdx];
+    GI.prefs.set({ speedIdx }); renderBar();
+    toast(['Normal speed', 'Fast speed', 'Skip animations'][speedIdx], 1000);
+  });
+  tap('#gbCam', () => { field.wide = !field.wide; GI.prefs.set({ wide: field.wide }); field.redraw(); renderBar(); });
+  tap('#gbTac', () => showTactics());
+  tap('#gbStats', () => showBox());
+  tap('#gbKey', () => { G.keyMode = !G.keyMode; GI.prefs.set({ keyMode: G.keyMode }); renderBar(); toast(G.keyMode ? '⚡ Key moments only' : 'Calling every snap', 1400); if (!busy && G.keyMode) next(); });
 
   // ---------- star rail ----------
   const GROUP = { QB: 0, RB: 0, WR: 0, TE: 0, OL: 0, KP: 1, LB: 2, DL: 2, S: 2, CB: 2 };
@@ -619,6 +638,20 @@
     tipOnce('calls', n.kind === 'call');
     tipOnce('tend', n.kind === 'call' && G.cpuLog && G.cpuLog.length >= 4);
     tipOnce('clock', n.kind === 'call' && n.lateHalf);
+  }
+  function showTactics() {
+    closePop();
+    const tendOK = !G.over && G.phase === 'play' && G.cpuLog && G.cpuLog.length >= 2;
+    let tend = '';
+    if (tendOK) {
+      const all = GI.tendency(G);
+      tend = `<h3 style="margin:4px 0 6px">${esc(G.teams[other(G.user)].abbr)} on ${ord(G.down)} & ${G.toGo}</h3>${all.map((x) => `<div class="sbar"><span>${GI.playName(x.id)}</span><div><i style="width:${Math.min(100, x.p * 2.2)}%;filter:none"></i></div><b>${x.p}%</b></div>`).join('')}`;
+    }
+    modal(`<div class="row between"><h2>Tactics</h2>${closeBtn}</div>${tend}<h3 style="margin:14px 0 6px">Counter chart</h3>${chartHTML()}`, (s) => (s.querySelector('#mx').onclick = closeModal));
+  }
+  function showBox() {
+    closePop();
+    modal(`<div class="row between"><h2>Box Score</h2>${closeBtn}</div>${statsTable()}<h3 style="margin:14px 0 6px">${esc(G.teams[G.user].abbr)} stars</h3>${starLines(G.user)}<h3 style="margin:14px 0 6px">${esc(G.teams[other(G.user)].abbr)} stars</h3>${starLines(other(G.user))}`, (q) => (q.querySelector('#mx').onclick = closeModal));
   }
   function showTendency() {
     const all = GI.tendency(G);
@@ -981,9 +1014,9 @@
       s.querySelector('#m2').onclick = () => showChart(true);
       s.querySelector('#m3').onclick = () => showHelp();
       s.querySelector('#m7').onclick = () => showSettings(true);
-      s.querySelector('#m5').onclick = () => modal(`<div class="row between"><h2>Box Score</h2>${closeBtn}</div>${statsTable()}<h3 style="margin:14px 0 6px">${G.teams[G.user].abbr} stars</h3>${starLines(G.user)}<h3 style="margin:14px 0 6px">${G.teams[other(G.user)].abbr} stars</h3>${starLines(other(G.user))}`, (q) => (q.querySelector('#mx').onclick = closeModal));
+      s.querySelector('#m5').onclick = showBox;
       s.querySelector('#m4').onclick = () => { GI.save(G); closeModal(); clearTimeout(autoTimer); removeTip(); refreshTitle(); show('title'); };
-      s.querySelector('#mKey').onclick = () => { G.keyMode = !G.keyMode; GI.prefs.set({ keyMode: G.keyMode }); closeModal(); toast(G.keyMode ? '🎯 Key moments only' : 'Calling every snap', 1400); if (!busy) next(); };
+      s.querySelector('#mKey').onclick = () => { G.keyMode = !G.keyMode; GI.prefs.set({ keyMode: G.keyMode }); closeModal(); renderBar(); toast(G.keyMode ? '🎯 Key moments only' : 'Calling every snap', 1400); if (!busy) next(); };
       const startPoss = G.poss, startQ = G.q;
       s.querySelector('#mDrive').onclick = () => simUntil((g) => g.poss !== startPoss || g.phase === 'kickoff' || g.over, `⏩ Simming the ${userPoss ? 'drive' : 'defensive series'}…`);
       s.querySelector('#mHalf').onclick = () => simUntil(startQ <= 2 ? (g) => g.q >= 3 || g.over : (g) => g.over || g.q > startQ + 10, startQ <= 2 ? '⏩ Simming to halftime…' : '⏩ Simming to the final whistle…');
@@ -1011,7 +1044,7 @@
       ${row('autoArm', 'Auto-arm stars', 'On-fire stars fire on the next snap where they matter')}
       ${row('replays', 'Show-Me replays', 'Slow-motion replay of your stars’ big moments')}
       ${row('tips', 'Coach tips', 'Pop-up hints in your first games')}
-      <div class="set-row"><div><b>Theme</b><small>Menus and panels</small></div><div class="seg" id="themeSeg" style="width:190px"><button data-v="auto">Auto</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div>
+      <div class="set-row"><div><b>Theme</b><small>Menus and panels</small></div><div class="seg" id="themeSeg" style="width:170px"><button data-v="auto">Night</button><button data-v="light">Day</button></div></div>
       <div class="backup"><b>💾 Backup & restore</b><p class="muted" style="margin:4px 0 10px;font-size:13px">Phones can clear website data. Save a backup of your franchise, career, album and Legacy Points — and restore it on any device.</p>
         <div class="menu-sims"><button class="btn gold small" id="bkFile">⬇ Download file</button><button class="btn ghost small" id="bkCode">📋 Copy code</button></div>
         <div class="menu-sims" style="margin-top:8px"><button class="btn ghost small" id="bkLoad">⬆ Restore file</button><button class="btn ghost small" id="bkPaste">📥 Paste code</button></div>
@@ -1078,7 +1111,7 @@
 
   // shared with the other UI files
   GI.UI = {
-    $, $$, esc, show, toast, modal, closeModal, closeBtn, confirmBox, helmet, sfx, icon, sleep, ord, tilt, T, flushRewards,
+    $, $$, esc, show, toast, modal, closeModal, closeBtn, confirmBox, helmet, sfx, icon, sleep, ord, T, flushRewards,
     money: (x) => SN.money(x), showPaper, showArchive, startPregame, refreshTitle, showSettings, showHelp,
     getS: () => S, setS: (x) => (S = x), getG: () => G, setG: (x) => (G = x), getField: () => field,
   };
