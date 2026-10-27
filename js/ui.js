@@ -290,7 +290,7 @@
       host.appendChild(el);
       setTimeout(() => el.remove(), 2100);
     });
-    if (list.some((f) => f.side === G.user)) { sfx('armed'); GI.audio.buzz(25); }
+    if (list.some((f) => f.side === G.user)) { sfx('impact'); GI.audio.buzz(25); } else sfx('theirImpact');
   }
 
   // ---------- title ----------
@@ -524,12 +524,12 @@
     // matchup storylines: rivalries, revenge, coaching trees, duos, style clashes
     const mine = (G.edge && G.edge[G.user].notes) || [], theirs = (G.edge && G.edge[other(G.user)].notes) || [];
     const uniq = (l) => l.filter((n, k) => l.findIndex((x) => x.text === n.text) === k);
-    const edgeHTML = (G.rivalry && G.rivalry.hot ? `<div class="rivalry">🔥 RIVALRY GAME</div>` : '') +
-      (mine.length || theirs.length ? `<div class="sticker panel edges"><h3>🧩 Storylines</h3>${uniq(mine).map((n) => `<div class="edge mine"><span>${n.icon}</span><p>${n.text}</p></div>`).join('')}${uniq(theirs).filter((n) => !mine.some((m) => m.text === n.text)).map((n) => `<div class="edge theirs"><span>${n.icon}</span><p><b>${ot.abbr}:</b> ${n.text}</p></div>`).join('')}</div>` : '');
+    const edgeHTML = (G.rivalry && G.rivalry.hot ? `<div class="rivalry">${GI.ico('flame')} RIVALRY GAME</div>` : '') +
+      (mine.length || theirs.length ? `<div class="sticker panel edges"><h3>${GI.ico('puzzle')} Storylines</h3>${uniq(mine).map((n) => `<div class="edge mine"><span>${GI.emo(n.icon)}</span><p>${n.text}</p></div>`).join('')}${uniq(theirs).filter((n) => !mine.some((m) => m.text === n.text)).map((n) => `<div class="edge theirs"><span>${GI.emo(n.icon)}</span><p><b>${ot.abbr}:</b> ${n.text}</p></div>`).join('')}</div>` : '');
     let hurtHTML = '';
     if (pgSeason) {
       const q = SN.questionable(S, S.user);
-      if (q.length) hurtHTML = `<div class="sticker panel"><h3>🩹 Questionable</h3><p class="muted" style="margin:0 0 8px;font-size:13px">One-week injuries. Push him to play: he's −6 OVR and fragile — get hurt again and it's 2+ more weeks.</p>${q.map((s) => `<label class="hurtrow"><input type="checkbox" data-hurt="${s.id}" ${S.playHurt[s.id] ? 'checked' : ''}> <span><b>${GI.POS[s.pos].label} ${esc(s.name)}</b> (${s.rating} OVR)</span></label>`).join('')}</div>`;
+      if (q.length) hurtHTML = `<div class="sticker panel"><h3>${GI.ico('medic')} Questionable</h3><p class="muted" style="margin:0 0 8px;font-size:13px">One-week injuries. Push him to play: he's −6 OVR and fragile — get hurt again and it's 2+ more weeks.</p>${q.map((s) => `<label class="hurtrow"><input type="checkbox" data-hurt="${s.id}" ${S.playHurt[s.id] ? 'checked' : ''}> <span><b>${GI.POS[s.pos].label} ${esc(s.name)}</b> (${s.rating} OVR)</span></label>`).join('')}</div>`;
     }
     $('#pgMods').innerHTML = (pgSeason ? GI.UI.modsHTML() : '') + edgeHTML + hurtHTML;
     $$('#pgMods [data-hurt]').forEach((c) => (c.onchange = () => {
@@ -543,11 +543,11 @@
     const homeT = G.teams.home, V = G.venue || GI.venueOf(homeT.idx);
     const tips = GI.venueTips(V, G.weather);
     $('#pgConds').innerHTML = `
-      <div class="sticker cond venue"><div class="label">${V.neutral ? 'Neutral site' : esc(homeT.city) + ' · home of the ' + esc(homeT.name)}</div><div class="big">🏟️ ${esc(V.name)}</div>
-        <div class="stadchips"><span class="pill">${GI.ROOFS[V.roof].icon} ${GI.ROOFS[V.roof].name}</span><span class="pill">${GI.SURFACES[V.surface].icon} ${GI.SURFACES[V.surface].name}</span><span class="pill">👥 ${V.cap}k</span></div>
+      <div class="sticker cond venue"><div class="label">${V.neutral ? 'Neutral site' : esc(homeT.city) + ' · home of the ' + esc(homeT.name)}</div><div class="big">${GI.ico('stadium')} ${esc(V.name)}</div>
+        <div class="stadchips"><span class="pill">${GI.ROOFS[V.roof].icon} ${GI.ROOFS[V.roof].name}</span><span class="pill">${GI.SURFACES[V.surface].icon} ${GI.SURFACES[V.surface].name}</span><span class="pill">${GI.ico('roster')} ${V.cap}k</span></div>
         ${tips.length ? `<ul class="vtips">${tips.map((t) => `<li>${t}</li>`).join('')}</ul>` : ''}</div>
       <div class="sticker cond"><div class="label">Weather</div><div class="big">${W.icon} ${W.name}</div><div class="muted" style="font-size:12.5px">${G.roofNote ? esc(G.roofNote) : W.desc}</div></div>
-      <div class="sticker cond"><div class="label">Crowd</div><div class="big">📣 ${G.crowd.name}</div><div class="muted" style="font-size:12.5px">${G.neutral ? 'Split down the middle. No home edge.' : G.crowd.level >= 50 ? `Fires up ${homeT.abbr} stars, rattles the road offense` : 'Quiet day. Little home edge.'}</div></div>`;
+      <div class="sticker cond"><div class="label">Crowd</div><div class="big">${GI.ico('leader')} ${G.crowd.name}</div><div class="muted" style="font-size:12.5px">${G.neutral ? 'Split down the middle. No home edge.' : G.crowd.level >= 50 ? `Fires up ${homeT.abbr} stars, rattles the road offense` : 'Quiet day. Little home edge.'}</div></div>`;
     const rows = [['RUN', 'run'], ['PASS', 'pass'], ['LINE', 'ol'], ['RUN D', 'runD'], ['PASS D', 'passD'], ['RUSH', 'rush'], ['ST', 'st']];
     // v1: the effective rating — talent first, then everything that nudges it
     G.effMods = null;
@@ -579,8 +579,8 @@
     opts.filter((x) => x[0] >= 4).slice(0, 2).forEach((x) => keys.push(x[1]));
     if (!keys.length) keys.push('Dead even on paper. Win the counter-call battle and the turnover margin.');
     const vt = GI.venueTips(G.venue || GI.venueOf(G.teams.home.idx), G.weather); if (vt[0]) keys.push(vt[0]);
-    $('#pgScout').innerHTML = `<h3>🔑 Keys to the game</h3><ol class="keys">${keys.slice(0, 3).map((k) => `<li>${k}</li>`).join('')}</ol>
-      <h3 style="margin-top:16px">🔎 Scouting ${ot.abbr}</h3>
+    $('#pgScout').innerHTML = `<h3>${GI.ico('key')} Keys to the game</h3><ol class="keys">${keys.slice(0, 3).map((k) => `<li>${k}</li>`).join('')}</ol>
+      <h3 style="margin-top:16px">${GI.ico('scout')} Scouting ${ot.abbr}</h3>
       <ul class="scout"><li><b>OC ${oc.name}</b> — ${GI.OC_STYLES[oc.style]}. ${ocHint}</li><li><b>DC ${dc.name}</b> — ${GI.DC_STYLES[dc.style]}. ${dcHint}</li>
       ${idn ? `<li><b>Playbook:</b> ${idn.icon} ${idn.name}. ${idn.desc}</li>` : ''}
       ${G.intel ? `<li class="intel">${GI.ico('eye')} <b>Leaked:</b> their go-to play is <b>${GI.playName(G.cpuPotw.off)}</b> (counter: <b>${GI.playName(GI.counterOf(G.cpuPotw.off))}</b>). On defense they trust <b>${GI.playName(G.cpuPotw.def)}</b>.</li>` : '<li class="muted">They have their own Play of the Week too. You won\'t know it unless the Gazette gets a leak.</li>'}
@@ -591,19 +591,19 @@
     const tr = (s) => (s.traits || []).map((k) => GI.TRAITS[k] ? `<i title="${GI.TRAITS[k].name}">${GI.TRAITS[k].icon}</i>` : '').join('');
     const sl = (t) => `<div class="starlist">${t.stars.map((s) => `<span class="schip ${s.injured ? 'hurt' : ''}"><b>${GI.POS[s.pos].label}</b>${GI.shortName(s.name)} <span class="muted">${s.injured ? 'OUT' : s.rating}</span>${tr(s)}</span>`).join('')}</div>`;
     $('#pgStars').innerHTML = ut.v === 1
-      ? `<h3>🃏 Top cards</h3><div class="label">${esc(ut.name)}</div>${lineupStrip(teamColors(ut), 6)}<div class="label" style="margin-top:12px">${esc(ot.name)}</div>${lineupStrip(ot, 6)}
+      ? `<h3>${GI.ico('cards')} Top cards</h3><div class="label">${esc(ut.name)}</div>${lineupStrip(teamColors(ut), 6)}<div class="label" style="margin-top:12px">${esc(ot.name)}</div>${lineupStrip(ot, 6)}
         <h3 style="margin-top:16px">${GI.ico('spark')} Impact Cards</h3><p class="muted" style="margin:-2px 0 8px;font-size:12.5px">Each fires ${GI.impact ? GI.impact.USES : 3} times. Tap yours in the play sheet to play it on the next snap that player is part of.</p>
         <div class="label">${esc(ut.name)}</div>${impTeamHTML(G.user)}<div class="label" style="margin-top:10px">${esc(ot.name)}</div>${impTeamHTML(other(G.user))}`
       : `<h3>★ Star Players</h3><div class="label">${ut.name}</div>${sl(ut)}<div class="label" style="margin-top:12px">${ot.name}</div>${sl(ot)}`;
     const km = !!GI.prefs.get().keyMode;
-    $('#pgMode').innerHTML = `<h3>🎮 How do you want to play?</h3><div class="seg" id="modeSeg"><button data-v="0" class="${km ? '' : 'on'}">Every snap</button><button data-v="1" class="${km ? 'on' : ''}">Key moments</button></div>
+    $('#pgMode').innerHTML = `<h3>${GI.ico('pad')} How do you want to play?</h3><div class="seg" id="modeSeg"><button data-v="0" class="${km ? '' : 'on'}">Every snap</button><button data-v="1" class="${km ? 'on' : ''}">Key moments</button></div>
       <p class="muted" style="margin:8px 0 0;font-size:13px">${km ? 'The routine snaps sim on their own. You take over in the red zone, on 4th downs, in the two-minute drill, in crunch time and whenever a star catches fire.' : 'You call every snap on offense and defense. You can still sim a drive or skip to halftime from the ☰ menu.'}</p>`;
     $$('#modeSeg button').forEach((b) => (b.onclick = () => { GI.prefs.set({ keyMode: b.dataset.v === '1' }); G.keyMode = b.dataset.v === '1'; renderPregame(); }));
   }
   function renderPotw() {
     const hc = G.teams[G.user].coaches.hc;
     const grid = (list, cur, key) => `<div class="potw-grid">${list.map((p) => `<button data-k="${key}" data-v="${p.id}" class="${cur === p.id ? 'on' : ''}">${p.name}</button>`).join('')}</div>`;
-    $('#pgPotw').innerHTML = `<h3>📌 Play of the Week</h3><p class="muted" style="margin:0 0 8px;font-size:13.5px">Coach ${hc.name.split(' ').pop()} drilled one offensive and one defensive play. Each gets a boost for <b>3 reps</b> per game — save them for big downs. Calling the same play 3+ snaps in a row gets you read.</p>
+    $('#pgPotw').innerHTML = `<h3>${GI.ico('pin')} Play of the Week</h3><p class="muted" style="margin:0 0 8px;font-size:13.5px">Coach ${hc.name.split(' ').pop()} drilled one offensive and one defensive play. Each gets a boost for <b>3 reps</b> per game — save them for big downs. Calling the same play 3+ snaps in a row gets you read.</p>
       <div class="label">Offense</div>${grid(GI.OFF_PLAYS, G.potw.off, 'off')}<div class="label" style="margin-top:10px">Defense</div>${grid(GI.DEF_PLAYS, G.potw.def, 'def')}
       ${G.intel ? '' : '<p class="muted" style="margin:8px 0 0;font-size:12.5px">Tip: the Gazette\'s scouting report sometimes leaks their go-to play. Drill its counter.</p>'}`;
     $$('#pgPotw button').forEach((b) => (b.onclick = () => {
@@ -810,8 +810,8 @@
     const userOff = G.poss === G.user;
     const lean = t.map((x) => `<span>${GI.playName(x.id)} <b>${x.p}%</b></span>`).join('');
     return `<button class="tend" id="tendBtn"><span class="tl">${userOff ? 'Their D leans' : 'Their O leans'}</span>${lean}</button>
-      ${h ? `<div class="habit">👀 ${h.third ? 'On 3rd/4th down' : 'On early downs'} they've called <b>${GI.playName(h.call)}</b> ${h.n} of the last ${h.of}</div>` : ''}
-      ${tip ? `<div class="situ">💡 ${tip}</div>` : ''}`;
+      ${h ? `<div class="habit">${GI.ico('eye')} ${h.third ? 'On 3rd/4th down' : 'On early downs'} they've called <b>${GI.playName(h.call)}</b> ${h.n} of the last ${h.of}</div>` : ''}
+      ${tip ? `<div class="situ">${GI.ico('bulb')} ${tip}</div>` : ''}`;
   }
 
   // the playbook is grouped: four formations on offense, four packages on defense
@@ -873,10 +873,10 @@
     } else if (n.kind === 'call') {
       const situ = G.twoPt ? '2-Pt Try' : `${ord(G.down)} & ${G.ballOn + G.toGo >= 100 ? 'Goal' : G.toGo}`;
       const tools = [];
-      if (n.canTO) tools.push(`<button class="tool" data-act="to">⏱ Timeout <b>${G.to[G.user]}</b></button>`);
-      if (n.userOff && !G.twoPt && (n.lateHalf || G.hurry[G.user])) tools.push(`<button class="tool ${G.hurry[G.user] ? 'on' : ''}" data-act="hurry">⏩ Hurry-up ${G.hurry[G.user] ? 'ON' : 'off'}</button>`);
-      if (n.canSpike) tools.push('<button class="tool" data-act="spike">🏈 Spike</button>');
-      if (n.canKneel) tools.push('<button class="tool" data-act="kneel">🧎 Kneel</button>');
+      if (n.canTO) tools.push(`<button class="tool" data-act="to">${GI.ico('clock')} Timeout <b>${G.to[G.user]}</b></button>`);
+      if (n.userOff && !G.twoPt && (n.lateHalf || G.hurry[G.user])) tools.push(`<button class="tool ${G.hurry[G.user] ? 'on' : ''}" data-act="hurry">${GI.ico('ffwd')} Hurry-up ${G.hurry[G.user] ? 'ON' : 'off'}</button>`);
+      if (n.canSpike) tools.push(`<button class="tool" data-act="spike">${GI.ico('ball')} Spike</button>`);
+      if (n.canKneel) tools.push(`<button class="tool" data-act="kneel">${GI.ico('kneel')} Kneel</button>`);
       const toolHTML = tools.length ? `<div class="tools">${tools.join('')}</div>` : '';
       if (n.userOff) {
         html = `<div class="cp-head"><span class="t">Offense · ${situ}</span>${n.fourth ? '<span class="pill red">4th down</span>' : `<span class="pill">${GI.spotLabel(G)}</span>`}</div>${toolHTML}${G.twoPt ? '' : tendHTML()}<div class="grid">`;
@@ -1094,6 +1094,7 @@
     collectReel(res);
     try {
       if (res.kind === 'setup2') toast('Going for two! Pick a play.', 1500);
+      if (res.impact && res.impact.some((f) => f.side === G.user)) G.impUsed = true;
       if (res.impact && SPEEDS[speedIdx] < 99) impactFlash(res.impact);
       await field.runPlay(res, G);
       if (res.matrix != null && SPEEDS[speedIdx] < 99) reveal(res);
@@ -1272,7 +1273,7 @@
         ${linescore()}</div>
       ${flowChart()}
       ${mvpStar ? `<div class="sticker panel"><div class="label">Star of the game</div><h3 style="margin:4px 0 0">★ ${mvpStar.name} <span class="muted" style="font-size:15px">${GI.POS[mvpStar.pos].label} #${mvpStar.num}</span></h3>${best ? `<p class="muted" style="margin:4px 0 0">${best} Show-Me play${best > 1 ? 's' : ''}</p>` : ''}</div>` : ''}
-      ${recs.length ? `<div class="sticker panel"><h3>📜 History made</h3><ul class="slines">${recs.map((r) => `<li><span class="pp-pos">${r.th ? '🏅' : '📜'}</span><b>${GI.shortName(r.name)}</b><span>${r.th ? `${r.th.toLocaleString()} career ${GI.STAT_NAME[r.key]}` : `record ${r.v} ${GI.STAT_NAME[r.key]}`}</span></li>`).join('')}</ul></div>` : ''}
+      ${recs.length ? `<div class="sticker panel"><h3>${GI.ico('scroll')} History made</h3><ul class="slines">${recs.map((r) => `<li><span class="pp-pos">${r.th ? '🏅' : '📜'}</span><b>${GI.shortName(r.name)}</b><span>${r.th ? `${r.th.toLocaleString()} career ${GI.STAT_NAME[r.key]}` : `record ${r.v} ${GI.STAT_NAME[r.key]}`}</span></li>`).join('')}</ul></div>` : ''}
       <div class="sticker panel"><h3>${ut.abbr} star lines</h3>${starLines(u)}</div>
       <div class="sticker panel">${statsTable()}</div>
       <div style="display:grid;gap:12px">${season ? '<button class="btn gold block" id="fGazette">📰 Read the Gazette ▶</button>' : G.friend ? '<div id="friendFinal"></div><div class="menu-duo"><button class="btn" id="fFriends">Friends</button><button class="btn ghost" id="fMenu">Main Menu</button></div>' : '<div class="menu-duo"><button class="btn gold" id="fRematch">Rematch</button><button class="btn" id="fSwap">Swap sides</button></div><button class="btn block" id="fNew">New Matchup</button><div class="menu-duo"><button class="btn ghost" id="fShare">Share result</button><button class="btn ghost" id="fMenu">Main Menu</button></div>'}</div>`;
@@ -1336,7 +1337,7 @@
   }
   async function shareResult() {
     const u = G.user, o = other(u);
-    const txt = `🏈 Grid Iron: ${G.teams[u].city} ${G.teams[u].name} ${G.score[u]}, ${G.teams[o].city} ${G.teams[o].name} ${G.score[o]}${G.ot ? ' (OT)' : ''} at ${G.venue ? G.venue.name : 'the stadium'} ${GI.WEATHER[G.weather].icon}`;
+    const txt = `🏈 Grid Iron: ${G.teams[u].city} ${G.teams[u].name} ${G.score[u]}, ${G.teams[o].city} ${G.teams[o].name} ${G.score[o]}${G.ot ? ' (OT)' : ''} at ${G.venue ? G.venue.name : 'the stadium'} ${GI.WEATHER[G.weather].emoji || ''}`;
     try {
       if (navigator.share) { await navigator.share({ text: txt }); return; }
       await navigator.clipboard.writeText(txt); toast('📋 Result copied');

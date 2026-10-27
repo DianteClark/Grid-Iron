@@ -323,7 +323,7 @@
       const name = card && !card.unit ? card.name.split(' ').slice(-1)[0] : GI.LAST[h % GI.LAST.length];
       const num = card && card.num != null ? card.num : (GI.unitRole && GI.unitRole(role) !== role ? (role[0] === 'D' ? 90 + (h % 10) : 60 + (h % 20)) : null);
       const star = v1 ? !!(card && card.star) : !!card;
-      return { id, role, name: name.toUpperCase(), side: id[0], rx: p[0], ry: p[1], color, stripe, glyph: team.glyph || GI.TEAM_GLYPH[team.idx], star, tier: card && card.tier, num: v1 || star ? num : null, fire: star && (card.meter >= 100 || card.armed), armed: star && card.armed, ang: null };
+      return { id, role, name: name.toUpperCase(), side: id[0], rx: p[0], ry: p[1], color, stripe, glyph: team.glyph || GI.TEAM_GLYPH[team.idx], star, tier: card && card.tier, num: v1 || star ? num : null, fire: star && (card.meter >= 100 || card.armed), armed: star && card.armed, cid: card ? card.id : null, ang: null };
     }
     toAbs(rx, ry) {
       const { los, dir } = this.ctxPlay;
@@ -354,6 +354,8 @@
         this.players = ids.map((id) => {
           const p = this.mkPlayer(id, S.tracks[id][0].slice(1), id[0] === 'o' ? ot : dt, id[0] === 'o' ? oc : dc);
           if (prev[id]) { p.fire = prev[id].fire; p.armed = prev[id].armed; }
+          const f = (res.impact || []).find((x) => x.id === p.cid && ((p.side === 'o') === (x.side === offSide)));
+          if (f) p.imp = ['#c98a52', '#c98a52', '#c9d3e4', '#ffc53d', '#b78cff'][f.tier] || '#ffc53d';
           return p;
         });
         this.lines = (res.kind === 'kickoff') ? null : { los: res.los, fd: res.toGo && !(res.kind === 'fg' || res.kind === 'xp' || res.kind === 'punt') ? res.los + res.dir * res.toGo : null, dir: res.dir };
@@ -569,6 +571,11 @@
       list.forEach(({ p, x, y }) => {
         const R = RAD(p);
         if (p.armed) { g.strokeStyle = `rgba(255,197,61,${0.5 + pulse * 0.5})`; g.lineWidth = 2.5; g.beginPath(); g.arc(x, y, R * 1.3 + 3 + pulse * 2, 0, 7); g.stroke(); }
+        if (p.imp) { // an Impact Card in play: a spinning ring in the card's tier color
+          const sp = performance.now() / 320;
+          g.save(); g.strokeStyle = p.imp; g.lineWidth = 3; g.shadowColor = p.imp; g.shadowBlur = 10; g.setLineDash([R * 0.9, R * 0.55]); g.lineDashOffset = -sp * R;
+          g.beginPath(); g.arc(x, y, R * 1.55 + 2, 0, 7); g.stroke(); g.restore();
+        }
         g.fillStyle = p.star ? '#ffc53d' : 'rgba(6,10,20,.8)'; g.beginPath(); g.arc(x, y, R + (p.star ? 2.2 : 1.1), 0, 7); g.fill();
         sphere(g, x, y, R, p.color);
         // direction notch

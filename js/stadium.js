@@ -38,11 +38,13 @@
     ['Hangar Field', 'open', 'turf', 'windy', 59],              // Wichita
   ];
   GI.ROOFS = { open: { name: 'Open air', icon: '🌤️' }, dome: { name: 'Dome', icon: '🏟️' }, retract: { name: 'Retractable roof', icon: '🪟' } };
+  if (GI.ico) { const RF = { open: 'open', dome: 'dome', retract: 'retract' }; Object.keys(RF).forEach((k) => { GI.ROOFS[k].emoji = GI.ROOFS[k].icon; GI.ROOFS[k].icon = GI.ico(RF[k], 'wx'); }); }
   GI.SURFACES = {
     grass: { name: 'Grass', icon: '🌱', desc: 'Natural grass. Gets sloppy in rain and snow.' },
     turf: { name: 'Turf', icon: '⚡', desc: 'Fast track: outside runs and deep balls get a lift, a few more injuries.' },
     blue: { name: 'Blue turf', icon: '💙', desc: 'Fast, famous and a little disorienting for visitors.' },
   };
+  if (GI.ico) { const SF = { grass: 'open', turf: 'spark', blue: 'spark' }; Object.keys(GI.SURFACES).forEach((k) => { GI.SURFACES[k].emoji = GI.SURFACES[k].icon; GI.SURFACES[k].icon = GI.ico(SF[k] || 'open', 'wx'); }); }
   GI.CLIMATES = {
     cold: { name: 'Cold winters', early: { clear: 55, rain: 15, wind: 20, heat: 5, snow: 5 }, late: { clear: 28, rain: 10, wind: 20, snow: 42, heat: 0 } },
     mild: { name: 'Mild', early: { clear: 55, rain: 20, wind: 15, heat: 10, snow: 0 }, late: { clear: 48, rain: 25, wind: 17, snow: 10, heat: 0 } },

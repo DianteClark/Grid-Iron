@@ -33,6 +33,39 @@
       <button class="btn gold block" id="tuOk">${(S.tierUps || []).length ? 'Next ▶' : 'Nice ▶'}</button></div>`, (m) => (m.querySelector('#tuOk').onclick = () => { closeModal(); if ((S.tierUps || []).length) setTimeout(tierReveal, 150); }));
   }
   // ---------- weekly practice ----------
+  // ---------- the guided first season: the Coach's Clipboard ----------
+  const GUIDE = [
+    ['camp', 'Run spring training', 'Every player grows (or ages). Young ones can break through.', null],
+    ['reps', 'Give a young player extra reps', 'Reps add XP and build breakthrough odds. Stars are built, not found.', 'reps'],
+    ['locker', 'Visit the Locker Room', 'Pick your captains and see your Impact Cards.', 'locker'],
+    ['game', 'Play a game yourself', 'Tap Play instead of Sim. Talent decides most games; good calls steal the close ones.', null],
+    ['impact', 'Play an Impact Card', 'In the play sheet, tap a card, then call a play that fits him.', null],
+    ['scout', 'Read a scouting report', "The Gazette's report on your next opponent sometimes leaks their go-to play.", null],
+    ['friend', 'Send your team code to a friend', 'Friends & Challenges on the main menu. Rivalries start here.', 'friends'],
+  ];
+  function guideState() {
+    if (!S || S.rosters[S.user].v !== 1) return null;
+    const g = S.guide = S.guide || { done: {}, paid: {} };
+    if (g.hidden) return null;
+    if (S.phase !== 'camp' || S.year > 1) g.done.camp = true;
+    if ((S.practice && (S.practice.reps || []).length) || SN.allStars(S, S.user).some((c) => c.invest)) g.done.reps = true;
+    if (GI.prefs.get().sentCode) g.done.friend = true;
+    // each step pays 2 Impact Points, once
+    let paid = false;
+    GUIDE.forEach(([k]) => { if (g.done[k] && !g.paid[k]) { g.paid[k] = true; S.ip = (S.ip || 0) + 2; paid = true; } });
+    if (paid) SN.save(S);
+    const n = GUIDE.filter(([k]) => g.done[k]).length;
+    if (n === GUIDE.length) { if (!g.finished) { g.finished = true; S.ip += 5; SN.save(S); toast("Coach's Clipboard complete: +5 Impact Points", 2200); } return null; }
+    return { g, n };
+  }
+  function guideHTML() {
+    const st = guideState(); if (!st) return '';
+    const next = GUIDE.find(([k]) => !st.g.done[k]);
+    return `<div class="sticker panel guide"><div class="row between"><h3>${GI.ico('whistle')} Coach's Clipboard</h3><span class="pill gold">${st.n}/${GUIDE.length}</span></div>
+      <p class="muted" style="margin:2px 0 8px;font-size:12.5px">Your first season, step by step. Each one pays 2 Impact Points.</p>
+      <ul class="glist">${GUIDE.map(([k, t, d, go]) => `<li class="${st.g.done[k] ? 'done' : k === next[0] ? 'next' : ''}"><i>${st.g.done[k] ? GI.ico('check') : ''}</i><span><b>${t}</b>${k === next[0] ? `<small>${d}</small>` : ''}</span>${!st.g.done[k] && go ? `<button class="btn ghost tiny" data-guide="${go}">Go</button>` : ''}</li>`).join('')}</ul>
+      <button class="linkbtn" id="guideHide">Hide the clipboard</button></div>`;
+  }
   function practiceHTML() {
     const P = S.practice || (S.practice = { focus: 'fund', reps: [] });
     const D = GI.dev;
@@ -42,7 +75,7 @@
     const slots = [0, 1, 2].map((k) => reps[k] ? `<div class="repslot full">${U.cardHTML(reps[k], tc, { small: true })}<button class="repx" data-unrep="${reps[k].id}" aria-label="Remove">✕</button></div>` : `<button class="repslot" data-addrep="1">${GI.ico('plus')}<span>Add player</span></button>`).join('');
     return `<div class="sticker panel practice"><div class="row between"><h3>${GI.ico('whistle')} This week's practice</h3><span class="label">${D.REP_XP} XP per rep</span></div>
       <div class="seg" id="prFocus">${Object.keys(D.PRACTICE).map((k) => `<button data-v="${k}" class="${P.focus === k ? 'on' : ''}">${D.PRACTICE[k].name}</button>`).join('')}</div>
-      <p class="muted" style="font-size:13px;margin:8px 0 10px">${D.PRACTICE[P.focus].desc}. Extra reps go to up to ${D.REPS} players — young players with room to grow get the most out of them.</p>
+      <p class="muted" style="font-size:13px;margin:8px 0 10px">${D.PRACTICE[P.focus].desc}. Extra reps go to up to ${D.REPS} players. For players 26 and under they also build breakthrough odds: that's how Star Players get made.</p>
       <div class="reps">${slots}</div></div>`;
   }
   const breakOdds = (c) => Math.round(Math.min(0.6, (c.spark || 0.05) + ((S.up.gym || 1) - 1) * 0.02) * 100);
@@ -70,7 +103,7 @@
     const f = SN.forecast(S); if (!f) return '';
     const v = f.v;
     const fc = f.list.slice(0, 3).map((x) => `${GI.WEATHER[x.k].icon} ${x.p}%`).join(' · ');
-    return `<div class="venueline"><span>📍 <b>${esc(v.name)}</b></span><span>${GI.ROOFS[v.roof].icon} ${v.roof === 'open' ? GI.SURFACES[v.surface].name : GI.ROOFS[v.roof].name + ' · ' + GI.SURFACES[v.surface].name}</span><span>${f.storm ? 'Forecast: ' : ''}${fc}</span></div>`;
+    return `<div class="venueline"><span>${GI.ico('pin')} <b>${esc(v.name)}</b></span><span>${GI.ROOFS[v.roof].icon} ${v.roof === 'open' ? GI.SURFACES[v.surface].name : GI.ROOFS[v.roof].name + ' · ' + GI.SURFACES[v.surface].name}</span><span>${f.storm ? 'Forecast: ' : ''}${fc}</span></div>`;
   }
   function renderHub() {
     sync(); U.setS(S);
@@ -119,7 +152,7 @@
         const seedTxt = S.bracket ? ` · #${S.bracket.seedOf[S.user]} vs #${S.bracket.seedOf[c.opp]}` : '';
         const hot = L.heat(S, S.user, c.opp) + L.heat(S, c.opp, S.user) >= (L.isDiv(S.user, c.opp) ? 28 : 50);
         next = `<div class="sticker nextgame">
-          <div class="row between"><span class="pill ${c.playoff ? 'red' : 'gold'}">${c.label}${seedTxt}</span><span class="label">${hot ? '🔥 Rivalry · ' : ''}${c.ironBowl ? 'Neutral site' : c.home ? 'Home' : 'Away'}</span></div>
+          <div class="row between"><span class="pill ${c.playoff ? 'red' : 'gold'}">${c.label}${seedTxt}</span><span class="label">${hot ? GI.ico('flame') + ' Rivalry · ' : ''}${c.ironBowl ? 'Neutral site' : c.home ? 'Home' : 'Away'}</span></div>
           <div class="ng-mid">${helmet(ut, 'md')}<span class="ng-vs">${c.home || c.ironBowl ? 'VS' : 'AT'}</span>${helmet(op, 'md')}</div>
           <div class="ng-opp"><b>${op.city} ${op.name}</b><span class="muted">${orc} · ${SN.teamOvr(S, c.opp)} OVR · ${S.rosters[c.opp].stars.length} stars</span></div>
           ${lastMeeting(c.opp)}${venueLine()}
@@ -130,7 +163,7 @@
       } else {
         const bye = S.bracket && S.bracket.round === 0 && S.bracket.seedOf[S.user] <= 2;
         next = `<div class="sticker nextgame"><span class="pill red">${c.label}</span>
-          <h3 style="margin:10px 0 4px">${bye ? 'First-round bye! 😎' : S.bracket && S.bracket.seedOf[S.user] ? 'Eliminated' : 'Missed the playoffs'}</h3>
+          <h3 style="margin:10px 0 4px">${bye ? 'First-round bye!' : S.bracket && S.bracket.seedOf[S.user] ? 'Eliminated' : 'Missed the playoffs'}</h3>
           <p class="muted" style="margin:0 0 12px">${bye ? 'Rest up while the Wild Card games play out.' : 'Watch the rest of the bracket unfold.'}</p>
           <button class="btn gold block" id="hubSimRound">Sim ${c.label} ▶</button></div>`;
       }
@@ -143,10 +176,11 @@
         ${helmet(ut, 'lg')}
         <div class="ht-info"><span class="label">${ut.city}</span><h2>${ut.name}</h2>
           <div class="row" style="gap:6px;flex-wrap:wrap"><span class="pill">${SN.divName(S.user)}${gp ? ' · ' + ord(place) : ''}</span><span class="pill">${ovr} OVR</span>${streak ? `<span class="pill">${streak}</span>` : ''}${S.morale[S.user] ? `<span class="pill ${S.morale[S.user] > 0 ? 'green' : 'red'}">Morale ${S.morale[S.user] > 0 ? '+' : ''}${S.morale[S.user]}</span>` : ''}${S.rosters[S.user].identity ? `<span class="pill">${GI.IDENTITIES[S.rosters[S.user].identity].icon} ${GI.IDENTITIES[S.rosters[S.user].identity].name}</span>` : ''}</div>
-          ${gp ? (() => { const sp = SN.splits(S, S.user); return `<div class="splits">🏠 ${sp.home.w}-${sp.home.l} · ✈️ ${sp.away.w}-${sp.away.l}</div>`; })() : ''}
+          ${gp ? (() => { const sp = SN.splits(S, S.user); return `<div class="splits">${GI.ico('home')} ${sp.home.w}-${sp.home.l} · ${GI.ico('plane')} ${sp.away.w}-${sp.away.l}</div>`; })() : ''}
           <div class="hype"><span>${GI.ico('flame')} Fan hype</span><div><i style="width:${hype}%"></i></div><b>${hype}</b></div></div>
         <div class="ht-rec">${SN.recStr(r)}</div>
       </div>
+      ${guideHTML()}
       ${next}
       ${lockerHTML()}
       ${goalsHTML()}
@@ -170,6 +204,8 @@
     const on = (id, fn) => { const b = $('#' + id); if (b) b.onclick = fn; };
     on('hubPlay', () => startSeasonGame());
     on('hubLocker', () => openLocker());
+    on('guideHide', () => { S.guide.hidden = true; SN.save(S); renderHub(); });
+    $$('#hubBody [data-guide]').forEach((b) => (b.onclick = () => { const k = b.dataset.guide; if (k === 'reps') pickReps(); if (k === 'locker') openLocker(); if (k === 'friends') U.openFriends(); }));
     on('hubSim', () => simWeek(true));
     on('hubSimRound', () => simWeek(false));
     on('hubDraft', () => { renderDraft(); show('draft'); });
@@ -461,6 +497,9 @@
       <button class="btn ghost small block" id="hubLocker" style="margin-top:10px">Locker Room · captains & upgrades</button></div>`;
   }
   function openLocker() {
+    const keep = $('#modal').classList.contains('on') ? $('#sheet').scrollTop : 0;
+    setTimeout(() => { if (keep) $('#sheet').scrollTop = keep; }, 0);
+    if (S.guide && !S.guide.done.locker) { S.guide.done.locker = true; SN.save(S); }
     const r = S.rosters[S.user], IM = GI.impact, ut = T(S.user), tc = Object.assign({}, ut, GI.legacy.jersey(ut));
     const all = SN.allStars(S, S.user);
     const slots = IM.slots(r).map((c) => c.id);

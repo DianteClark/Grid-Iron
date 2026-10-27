@@ -56,7 +56,7 @@
   }
   // the five cards that travel: kept from the user's picks, filled with the best of the rest
   function slots(team) {
-    const all = pool(team).filter((c) => tierOf(team, c) > 0);
+    const all = (team.stars || []).filter((c) => tierOf(team, c) > 0); // only starters travel
     const keep = (team.impSlots || []).filter((id) => all.some((c) => c.id === id));
     const rest = all.filter((c) => !keep.includes(c.id)).sort((a, b) => tierOf(team, b) - tierOf(team, a) || b.rating - a.rating);
     team.impSlots = keep.concat(rest.map((c) => c.id)).slice(0, SLOTS);

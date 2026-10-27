@@ -135,7 +135,7 @@
     GI.assignRoles(stars);
     const team = { idx: i, city, name, abbr, c1, c2, glyph: id.glyph || (GI.TEAM_GLYPH ? GI.TEAM_GLYPH[i] : null), slots: stars.map((s) => s.pos), stars: stars.filter((s) => s.role), base: Object.assign({}, data.base), coaches: JSON.parse(JSON.stringify(data.coaches)), identity: data.identity || null, college: !!id.college };
     if (stars.some((s) => s.stats)) {
-      team.v = 1; team.benchList = (data.benchList || []).map((b) => Object.assign({}, b, { injured: false, armed: false }));
+      team.v = 1; team.fromData = true; team.benchList = (data.benchList || []).map((b) => Object.assign({}, b, { injured: false, armed: false }));
       if (data.captains) team.captains = Object.assign({}, data.captains);
       if (data.impSlots) team.impSlots = data.impSlots.slice();
     }
@@ -205,7 +205,7 @@
         }
       }
       t.stars = t.stars.filter((st) => st.role);
-      if (t.v === 1 && GI.impact && !t.captains) GI.impact.autoTeam(t);
+      if (t.v === 1 && GI.impact && !t.captains) { if (t.fromData) { GI.impact.autoCaptains(t); GI.impact.grant(t); GI.impact.slots(t); } else GI.impact.autoTeam(t); }
     });
     if (o.starMeter) ['home', 'away'].forEach((s) => teams[s].stars.forEach((st) => { if (o.starMeter[st.id] != null) st.meter = o.starMeter[st.id]; }));
     const morale = {};
@@ -1566,7 +1566,14 @@
   // ---------- save / load ----------
   const KEY = 'gridiron_save_v1';
   GI.save = (G) => { try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {} };
-  GI.load = () => { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } };
+  GI.load = () => {
+    try {
+      const s = localStorage.getItem(KEY); if (!s) return null;
+      const G = JSON.parse(s);
+      if (G && G.potw && GI.toPlay) { G.potw = { off: GI.toPlay(G.potw.off, 'off'), def: GI.toPlay(G.potw.def, 'def') }; if (G.cpuPotw) G.cpuPotw = { off: GI.toPlay(G.cpuPotw.off, 'off'), def: GI.toPlay(G.cpuPotw.def, 'def') }; }
+      return G;
+    } catch (e) { return null; }
+  };
   GI.clearSave = () => { try { localStorage.removeItem(KEY); } catch (e) {} };
   GI.prefs = {
     get() { try { return JSON.parse(localStorage.getItem('gridiron_prefs') || '{}'); } catch (e) { return {}; } },

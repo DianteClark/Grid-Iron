@@ -55,8 +55,8 @@
     $('#frBack').onclick = () => { U.refreshTitle(); show('title'); };
     $('#frName').onchange = (e) => { GI.prefs.set({ coachName: e.target.value.trim().slice(0, 18) || 'Coach' }); myCodeKey = null; };
     const on = (id, fn) => { const b = $('#' + id); if (b) b.onclick = fn; };
-    on('frShare', () => sendCode(myCode, `${SH.me().coach}'s ${GI.TEAMS[S.user].name} want a piece of you on Grid Iron.`, 'Grid Iron team code'));
-    on('frCopy', async () => { try { await navigator.clipboard.writeText(myCode); toast('Team code copied', 1400); } catch (e) { sendCode(myCode, 'My Grid Iron team code'); } });
+    on('frShare', () => GI.prefs.set({ sentCode: true }) || sendCode(myCode, `${SH.me().coach}'s ${GI.TEAMS[S.user].name} want a piece of you on Grid Iron.`, 'Grid Iron team code'));
+    on('frCopy', async () => { GI.prefs.set({ sentCode: true }); try { await navigator.clipboard.writeText(myCode); toast('Team code copied', 1400); } catch (e) { sendCode(myCode, 'My Grid Iron team code'); } });
     on('frNewFr', () => $('#btnSeason').click());
     on('frPaste', async () => { try { $('#frIn').value = await navigator.clipboard.readText(); } catch (e) { toast('Long-press the box and paste instead.'); } });
     on('frAdd', () => addCode($('#frIn').value));
@@ -178,6 +178,7 @@
     el.innerHTML = `<span>${GI.ico('star')} New share card${fresh.length > 1 ? 's' : ''}</span><b>${esc(fresh[0].title)}${fresh.length > 1 ? ` +${fresh.length - 1}` : ''}</b>`;
     el.onclick = () => { el.remove(); openCard(fresh[0].id); };
     host.appendChild(el);
+    sfx('card');
     setTimeout(() => el.remove(), 7000);
   }
 

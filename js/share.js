@@ -35,8 +35,45 @@
       if (m[1] === '1') { if (!canZip) return { ok: false, why: 'This browser is too old to read compressed codes.' }; bytes = await pipe(bytes, DecompressionStream, 'deflate-raw'); }
       const [sum, obj] = JSON.parse(new TextDecoder().decode(bytes));
       if (sum !== fnv(SALT + JSON.stringify(obj))) return { ok: false, why: "The code didn't pass its check. Was it edited?" };
-      return { ok: true, kind: m[2] === 'T' ? 'team' : 'result', data: obj };
+      const clean = m[2] === 'T' ? cleanTeam(obj) : cleanResult(obj);
+      if (!clean) return { ok: false, why: "That code is from a newer or broken version of the game." };
+      return { ok: true, kind: m[2] === 'T' ? 'team' : 'result', data: clean };
     } catch (e) { return { ok: false, why: 'The code is damaged. Copy the whole thing.' }; }
+  }
+
+  // ---------- cleaning what other people send ----------
+  // codes are checked for typos, not trusted: every string is stripped of markup and every number forced
+  const str = (x, n) => String(x == null ? '' : x).replace(/[<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, n || 24);
+  const num = (x, a, b, d) => { const v = Math.round(+x); return Number.isFinite(v) ? Math.max(a, Math.min(b, v)) : d; };
+  const hex = (c, d) => (/^#[0-9a-f]{6}$/i.test(String(c || '')) ? String(c) : d);
+  const POSES = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'KP'];
+  const STYLES = ['run', 'pass', 'balanced', 'gadget', 'blitz', 'cover', 'press'];
+  function cleanTeam(d) {
+    if (!d || typeof d !== 'object' || !Array.isArray(d.t) || !Array.isArray(d.s) || !Array.isArray(d.co) || d.s.length < 10) return null;
+    const traits = Object.keys(GI.TRAITS || {});
+    const s = d.s.slice(0, 16).map((x) => {
+      if (!Array.isArray(x) || !POSES.includes(x[0])) return null;
+      const st = Array.isArray(x[4]) ? x[4].slice(0, 3).map((v) => num(v, 35, 99, 60)) : [60, 60, 60];
+      while (st.length < 3) st.push(60);
+      return [x[0], str(x[1], 28) || 'Player', num(x[2], -1, 99, -1), num(x[3], 20, 40, 26), st, num(x[5], 0, 4, 0), (Array.isArray(x[6]) ? x[6] : []).filter((k) => traits.includes(k)).slice(0, 3), num(x[7], 30, 99, 70)];
+    });
+    if (s.some((x) => !x)) return null;
+    const co = [0, 1, 2, 3].map((i) => { const c = Array.isArray(d.co[i]) ? d.co[i] : []; return [str(c[0], 28) || 'Coach', num(c[1], 40, 99, 70), STYLES.includes(c[2]) ? c[2] : 0]; });
+    const v = Array.isArray(d.v) ? d.v : [];
+    return {
+      f: str(d.f, 40), c: str(d.c, 18) || 'Coach', y: num(d.y, 1, 999, 1), at: num(d.at, 0, 9e15, 0), ovr: num(d.ovr, 30, 99, 60), rec: [num((d.rec || [])[0], 0, 99, 0), num((d.rec || [])[1], 0, 99, 0)],
+      t: [num(d.t[0], 0, 31, 0), str(d.t[1], 22) || 'Visitors', str(d.t[2], 22) || 'Team', str(d.t[3], 4).toUpperCase() || 'VIS', hex(d.t[4], '#3a4766'), hex(d.t[5], '#ffffff'), GI.GLYPHS && GI.GLYPHS[d.t[6]] ? d.t[6] : null],
+      co, id: GI.IDENTITIES && GI.IDENTITIES[d.id] ? d.id : 0,
+      ca: [num((d.ca || [])[0], -1, s.length - 1, -1), num((d.ca || [])[1], -1, s.length - 1, -1)],
+      sl: (Array.isArray(d.sl) ? d.sl : []).map((i) => num(i, -1, s.length - 1, -1)).filter((i) => i >= 0).slice(0, 5),
+      v: [str(v[0], 32) || 'Their Stadium', ['open', 'dome', 'retract'].includes(v[1]) ? v[1] : 'open', GI.SURFACES && GI.SURFACES[v[2]] ? v[2] : 'grass', GI.CLIMATES && GI.CLIMATES[v[3]] ? v[3] : 'mild'],
+      s,
+    };
+  }
+  function cleanResult(d) {
+    if (!d || typeof d !== 'object' || !Array.isArray(d.s) || !Array.isArray(d.tm)) return null;
+    return { rid: str(d.rid, 40), by: str(d.by, 40), c: str(d.c, 18) || 'Coach', to: str(d.to, 40), s: [num(d.s[0], 0, 199, 0), num(d.s[1], 0, 199, 0)], ot: !!d.ot, at: num(d.at, 0, 9e15, Date.now()),
+      tm: [str(d.tm[0], 4), str(d.tm[1], 22) || 'Team', hex(d.tm[2], '#3a4766'), hex(d.tm[3], '#ffffff')], op: Array.isArray(d.op) ? [str(d.op[0], 4), str(d.op[1], 22)] : ['', ''], star: d.star ? str(d.star, 32) : null };
   }
 
   // ---------- your identity ----------
@@ -83,7 +120,7 @@
     ['hc', 'oc', 'dc', 'stc'].forEach((k, i) => { const [n, rt, sty] = d.co[i]; coaches[k] = { role: ROLE_NAMES[k], name: n, rating: rt }; if (sty) coaches[k].style = sty; });
     return {
       v: 1, idx, stars, benchList: [], base: {}, coaches, identity: d.id || null,
-      ident: { city, name, abbr, c1, c2, glyph },
+      ident: { city, name, abbr, c1, c2, glyph: glyph || (GI.TEAM_GLYPH ? GI.TEAM_GLYPH[idx] : null) },
       captains: { o: d.ca[0] >= 0 ? 'fr' + d.ca[0] : null, d: d.ca[1] >= 0 ? 'fr' + d.ca[1] : null },
       impSlots: (d.sl || []).map((i) => 'fr' + i),
       venue: { name: d.v[0], roof: d.v[1], surface: d.v[2], climate: d.v[3], idx },
@@ -116,18 +153,18 @@
     const won = g.us > g.them, lost = g.us < g.them;
     if (won) fr.w++; else if (lost) fr.l++; else fr.t++;
     const margin = Math.abs(g.us - g.them);
-    const prevStreak = fr.streak || 0;
+    const prevStreak = fr.streak || 0, heat0 = fr.heat || 0;
     fr.streak = won ? Math.max(1, prevStreak + 1) : lost ? Math.min(-1, prevStreak - 1) : 0;
     fr.heat = Math.min(100, (fr.heat || 0) + 6 + (margin <= 3 ? 8 : margin <= 8 ? 4 : 0) + (lost ? 4 : 0) + (g.ot ? 6 : 0) + (Math.abs(fr.streak) >= 3 ? 5 : 0));
     fr.games.unshift(g); fr.games.length = Math.min(fr.games.length, 30);
-    const story = drama(fr, g, prevStreak);
+    const story = drama(fr, g, prevStreak, heat0);
     g.story = story;
     F.news.unshift({ at: Date.now(), friend: fr.id, text: story, rid: g.rid }); F.news.length = Math.min(F.news.length, 30);
     saveFriends(F);
     return { ok: true, friend: fr, story };
   }
   // the Gazette writes it up
-  function drama(fr, g, prevStreak) {
+  function drama(fr, g, prevStreak, heat0) {
     const T = fr.team ? fr.team.t : [0, '', fr.stub ? fr.stub.name : 'team', ''];
     const them = `${fr.coach || 'Your friend'}'s ${T[2]}`;
     const sc = `${Math.max(g.us, g.them)}-${Math.min(g.us, g.them)}`;
@@ -145,7 +182,7 @@
       else line = pick([`${them} got the better of you, ${sc}. Time for a rematch.`, `${them} take this round, ${sc}.`]);
     } else line = `A ${g.us}-${g.them} tie with ${them}. Nobody gets bragging rights.`;
     if (g.star) line += ` ${g.star} was the difference.`;
-    return `${line} ${series}.${fr.heat >= 30 && (fr.heat - 20) < 30 ? ' This is officially a rivalry.' : ''}`;
+    return `${line} ${series}.${fr.heat >= 30 && (heat0 || 0) < 30 ? ' This is officially a rivalry.' : ''}`;
   }
   // the code you send back after playing a friend's team
   async function resultCode(G, friendId) {

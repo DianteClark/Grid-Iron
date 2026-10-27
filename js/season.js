@@ -28,7 +28,7 @@
 
   const S_ = {
     CONFS, DIVS, ROUND_NAMES, REQUIRED, CAP, UPGRADES, confOf, divOf,
-    load() { try { const s = localStorage.getItem(KEY); return s ? GI.league.migrate(JSON.parse(s)) : null; } catch (e) { console.error(e); return null; } },
+    load() { try { const s = localStorage.getItem(KEY); if (!s) return null; const S = GI.league.migrate(JSON.parse(s)); if (S && S.rosters && GI.cards) GI.cards.syncAll(S); return S; } catch (e) { console.error(e); return null; } },
     save(S) { if (GI.cards && S && S.rosters) GI.cards.syncAll(S); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} },
     clear() { try { localStorage.removeItem(KEY); } catch (e) {} },
   };
@@ -746,6 +746,7 @@
     const tiers0 = isV1(S) ? tierSnap(S) : null;
     S._newInj = []; S._benchNews = []; S._levelUps = [];
     S._practice = isV1(S) ? GI.dev.practiceWeek(S) : [];
+    if (userG && isV1(S)) { S.guide = S.guide || { done: {}, paid: {} }; S.guide.done.game = true; if (userG.impUsed) S.guide.done.impact = true; }
     const healing = Object.keys(S.inj).filter((k) => S.inj[k] > 0); // these heal after this week's games
     const highlights = [], results = [];
     const playoff = S.phase === 'playoffs';
@@ -1161,7 +1162,7 @@
     GI.league.weekly(S, p);
     const nx = nextUserGame(S);
     p.next = nx;
-    if (nx && isV1(S) && GI.FORMATIONS) p.sections.push(scoutReport(S, nx));
+    if (nx && isV1(S) && GI.FORMATIONS) { p.sections.push(scoutReport(S, nx)); S.guide = S.guide || { done: {}, paid: {} }; S.guide.done.scout = true; }
     if (nx) p.event = makeEvent(S, nx);
     else if (R() < 0.5) p.event = flavorEvent(S);
     return p;

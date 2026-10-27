@@ -40,12 +40,38 @@
     check: '<path d="M4 12l5 5L20 6"/>',
     scout: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    rain: '<path d="M7 15a4 4 0 1 1 1-7.9A5 5 0 0 1 17.6 9 3.5 3.5 0 0 1 17 16H7z"/><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2"/>',
+    snow: '<path d="M12 2v20M4 7l16 10M4 17L20 7M9 3l3 2 3-2M9 21l3-2 3 2"/>',
+    wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h7"/>',
+    heat: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M12 9v7"/>',
+    dome: '<path d="M3 18a9 9 0 0 1 18 0z"/><path d="M3 18h18M8 18v-4M12 18v-6M16 18v-4"/>',
+    retract: '<path d="M3 18a9 9 0 0 1 9-9"/><path d="M3 18h18M12 9v9M15 11l3-2M18 14l3-1"/>',
+    open: '<path d="M3 18h18M5 18v-6l3 2 4-4 4 4 3-2v6"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
+    cards: '<rect x="7" y="4" width="12" height="16" rx="2"/><path d="M5 7v12a2 2 0 0 0 2 2h9"/>',
+    pin: '<path d="M12 22s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>',
+    pad: '<rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 10v5M4.5 12.5h5M15 11h.1M18 14h.1"/>',
+    clock: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M10 2h4"/>',
+    ball: '<ellipse cx="12" cy="12" rx="9.5" ry="6" transform="rotate(-35 12 12)"/><path d="M9 15l6-6M10.5 10.5l1.5 1.5M12 9l1.5 1.5M9 12l1.5 1.5"/>',
+    kneel: '<circle cx="13" cy="4" r="2"/><path d="M13 7l-2 6h5l1 7M11 13l-4 3v4"/>',
+    bulb: '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/>',
+    scroll: '<path d="M6 3h11a2 2 0 0 1 2 2v13a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1h11v1a3 3 0 0 0 3 3M6 3a2 2 0 0 0-2 2v2h4"/>',
+    puzzle: '<path d="M4 7h4a2 2 0 1 1 4 0h4v4a2 2 0 1 1 0 4v4H4v-4a2 2 0 1 0 0-4z"/>',
+    plane: '<path d="M2 16l20-8-6 13-3-6z"/><path d="M13 15L22 8"/>',
+
   };
   GI.ICON = P;
+  // emoji that still live in older story text → the matching line icon
+  const EMO = { '🔥': 'flame', '🤝': 'mentor', '🧠': 'eye', '⚔️': 'target', '⚔': 'target', '🪓': 'flame', '🔁': 'trade', '😤': 'flame', '🎓': 'mentor', '😒': 'diva', '📈': 'chart', '📉': 'chart', '🗯️': 'leader', '⏳': 'clock', '📜': 'scroll', '🏅': 'trophy', '🗣️': 'leader', '🙊': 'diva', '💸': 'coin', '🔄': 'trade', '🎩': 'star', '👑': 'star', '🏟️': 'stadium', '⭐': 'star', '★': 'star', '💍': 'trophy', '🛡️': 'ironman', '📣': 'leader' };
+  GI.emo = (e) => (EMO[e] ? GI.ico(EMO[e]) : e && /^[\x00-\x7f]*$/.test(e) ? e : GI.ico('spark'));
   GI.ico = (name, cls) => `<svg class="ico ${cls || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
   // traits get a real icon instead of an emoji
   GI.TRAIT_ICON = { leader: 'leader', diva: 'diva', gymrat: 'gymrat', ironman: 'ironman', biggame: 'biggame', mentor: 'mentor' };
   if (GI.TRAITS) Object.keys(GI.TRAIT_ICON).forEach((k) => { if (GI.TRAITS[k]) GI.TRAITS[k].icon = GI.ico(GI.TRAIT_ICON[k], 'tr'); });
+  // weather and roofs: line icons instead of emoji (the emoji stay for plain-text sharing)
+  if (GI.WEATHER) { const W = { clear: 'sun', rain: 'rain', snow: 'snow', wind: 'wind', heat: 'heat', dome: 'dome' }; Object.keys(W).forEach((k) => { if (GI.WEATHER[k]) { GI.WEATHER[k].emoji = GI.WEATHER[k].icon; GI.WEATHER[k].icon = GI.ico(W[k], 'wx'); } }); }
+  if (GI.ROOFS) { const RF = { open: 'open', dome: 'dome', retract: 'retract' }; Object.keys(RF).forEach((k) => { if (GI.ROOFS[k]) { GI.ROOFS[k].emoji = GI.ROOFS[k].icon; GI.ROOFS[k].icon = GI.ico(RF[k], 'wx'); } }); }
   const IDN = { ground: 'flame', air: 'spark', west: 'chart', blitz: 'target', bend: 'ironman' };
   if (GI.IDENTITIES) Object.keys(IDN).forEach((k) => { if (GI.IDENTITIES[k]) GI.IDENTITIES[k].icon = GI.ico(IDN[k], 'tr'); });
 })();

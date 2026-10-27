@@ -1014,3 +1014,17 @@ button.ichip { cursor: pointer; } button.ichip:active { transform: scale(.97); }
 .scnew span { font-family: var(--disp); font-weight: 800; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); } .scnew span .ico { width: 13px; height: 13px; vertical-align: -2px; }
 .scnew b { font-family: var(--disp); font-weight: 900; font-size: 17px; text-transform: uppercase; }
 @keyframes slideUp { from { transform: translate(-50%, 30px); opacity: 0; } }
+
+/* ===== v1 guided first season ===== */
+.guide { border-color: rgba(255,197,61,.35); }
+.glist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.glist li { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-radius: 10px; font-size: 14px; }
+.glist li i { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); display: grid; place-items: center; }
+.glist li i .ico { width: 14px; height: 14px; }
+.glist li.done { color: #7f8aa8; } .glist li.done b { text-decoration: line-through; text-decoration-color: rgba(255,255,255,.3); font-weight: 600; }
+.glist li.done i { background: var(--green); border-color: var(--green); color: #052513; }
+.glist li.next { background: rgba(255,197,61,.08); } .glist li.next i { border-color: var(--gold); box-shadow: 0 0 10px rgba(255,197,61,.5); }
+.glist li span { flex: 1; display: flex; flex-direction: column; } .glist li small { font-size: 12px; color: #a9b3cc; margin-top: 2px; }
+.linkbtn { background: none; border: 0; color: #8c97b4; font-size: 12.5px; font-weight: 700; text-decoration: underline; padding: 6px 0 0; }
+.ico.wx { width: 1.05em; height: 1.05em; vertical-align: -0.15em; } .habit .ico, .situ .ico, .tool .ico, .splits .ico, .venueline .ico { width: 14px; height: 14px; vertical-align: -2px; } h3 > .ico { width: 18px; height: 18px; vertical-align: -2px; color: var(--gold); } .rivalry .ico { width: 16px; height: 16px; vertical-align: -2px; }
+.edge span .ico, .cond .big .ico, .stadchips .ico { width: 1em; height: 1em; vertical-align: -0.12em; color: var(--gold); }
