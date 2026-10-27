@@ -5,6 +5,12 @@ A sticker-style football sim you play in the browser — built mobile-first and 
 **▶ Play:** https://dianteclark.github.io/Grid-Iron/
 
 ## What's in it
+- **Career Mode**: build a player (position, college, number, attributes, a signature trait), star in 4 college games where you control his key moments on the field, run the combine, read the mock drafts, then enter your franchise's draft or go pro and play a whole career through awards, contracts and the Hall of Fame.
+- **League life**: rivalry heat, coaching trees (revenge games, coaches who know each other's playbooks), stars facing the team that cut them, QB–receiver duos, star rivalries, playbook identities, mentors, traits, playing hurt, holdouts and hot-seat storylines that carry across weeks, press conferences, power rankings and league news.
+- **Front office**: salary cap, free-agency bidding wars, trades for stars and picks, a coaching market (retired stars become coaches), the owner's goals and yearly review (you can get fired), fan hype, hometown heroes, a draft lottery and dynasty difficulty.
+- **Legacy**: awards night (MVP, OPOY, DPOY, ROY, Coach of the Year, the All-Iron team), a record book, a Hall of Fame, Legacy Points, a store with jerseys, field skins and touchdown celebrations, a sticker album, a season highlight reel and a collector's-edition championship Gazette.
+- **Game day depth**: down & distance matters, opponent tendencies on the play sheet, a "what they called" reveal after every snap, timeouts, hurry-up, spike, kneel and the two-minute warning, momentum, halftime adjustments, key-moments mode, sim a drive or a half, slow-motion replays, auto-arm, record and milestone banners, first-game coach tips.
+- **Backups**: download a backup file or copy a code from Settings and restore it on any device.
 - **Franchise mode**: every team starts empty. A 4-round opening draft (K/P, QB and LB required in rounds 1–3) leaves teams with 3–5 stars and room to grow; later drafts grow to 5, 6, 7 and 8 rounds. Prospects show scouted rating ranges (fuzzy until you draft them), potential grades and ⚡ breakthrough spark. Auto-pick and auto-draft included.
 - **Contracts & budget**: rookie deals, salaries, re-signing or letting stars walk, one backup star whose contract only starts when he plays, ticket and TV revenue, an Iron-Bowl purse for the next draft.
 - **Spring training** with camp focus, intense camps and rookie breakthroughs (+8 to +15).
@@ -33,7 +39,8 @@ A sticker-style football sim you play in the browser — built mobile-first and 
 1.5 ✅ Polish: full-screen field, helmet stars & fire, CB stars, clashes, sound, settings
 2. ✅ Seasons: schedule, standings, playoffs, Iron-Bowl, the Gazette
 3. ✅ Franchise: drafts, contracts, budget, spring training, upgrades, coach and ego drama
-4. Legacy & customization: records room, career stats, jerseys and stadium looks
+4. ✅ League life, Legacy & Career Mode
+5. Ideas welcome
 
 ## Run locally
 Any static server works, e.g. `python3 -m http.server` and open `http://localhost:8000`.

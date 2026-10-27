@@ -123,10 +123,20 @@
       rr(g, X(-1.0) + 4, Y(111) + 5, (W_YD + 2) * ppy, 122 * ppy, rad); g.fill();
       g.fillStyle = '#fff';
       rr(g, X(-1.0), Y(111), (W_YD + 2) * ppy, 122 * ppy, rad); g.fill();
+      const style = (GI.legacy && GI.legacy.equipped('field')) || 'classic';
+      const PAL = {
+        classic: ['#3f9a4b', '#52b25d', '#4aa854', 'rgba(255,255,255,.95)', 'rgba(255,255,255,.92)'],
+        checker: ['#3f9a4b', '#52b25d', '#4aa854', 'rgba(255,255,255,.95)', 'rgba(255,255,255,.92)'],
+        retro: ['#7f9a3a', '#93ad4a', '#87a243', '#fff3d1', '#fff3d1'],
+        night: ['#1d5527', '#2a6a33', '#25622e', 'rgba(236,246,255,.92)', 'rgba(236,246,255,.85)'],
+        neon: ['#0b1424', '#121f36', '#0f1b30', '#5ef2ff', '#ff5ad9'],
+      }[style] || null;
+      const pal = PAL || ['#3f9a4b', '#52b25d', '#4aa854', 'rgba(255,255,255,.95)', 'rgba(255,255,255,.92)'];
+      this.fieldStyle = style;
       g.save(); rr(g, X(-0.35), Y(110.65), (W_YD + 0.7) * ppy, 121.3 * ppy, rad * 0.7); g.clip();
-      g.fillStyle = '#3f9a4b'; g.fillRect(X(-1), Y(112), (W_YD + 2) * ppy, 124 * ppy);
+      g.fillStyle = pal[0]; g.fillRect(X(-1), Y(112), (W_YD + 2) * ppy, 124 * ppy);
       for (let y = -10; y < 110; y += 5) {
-        g.fillStyle = (Math.floor((y + 10) / 5) % 2) ? '#52b25d' : '#4aa854';
+        g.fillStyle = (Math.floor((y + 10) / 5) % 2) ? pal[1] : pal[2];
         g.fillRect(X(0), Y(y + 5), W_YD * ppy, 5 * ppy);
       }
       // subtle mowing texture
@@ -134,8 +144,15 @@
       for (let x = 0; x < W_YD; x += 2.6) g.fillRect(X(x), Y(110), 1.3 * ppy, 120 * ppy);
       const ez = (y0, team, flip) => {
         g.fillStyle = team.c1; g.fillRect(X(0), Y(y0 + 10), W_YD * ppy, 10 * ppy);
-        g.fillStyle = 'rgba(255,255,255,.08)';
-        for (let x = -10; x < W_YD + 10; x += 4) { g.beginPath(); g.moveTo(X(x), Y(y0 + 10)); g.lineTo(X(x + 2), Y(y0 + 10)); g.lineTo(X(x - 8), Y(y0)); g.lineTo(X(x - 10), Y(y0)); g.fill(); }
+        if (style === 'checker') {
+          g.fillStyle = team.c2;
+          const sq = W_YD / 12;
+          for (let cx = 0; cx < 12; cx++) for (let cy = 0; cy < 4; cy++) if ((cx + cy) % 2) g.fillRect(X(cx * sq), Y(y0 + 10 - cy * 2.5), sq * ppy + 0.5, 2.5 * ppy + 0.5);
+          g.globalAlpha = 0.55; g.fillStyle = team.c1; g.fillRect(X(W_YD * 0.12), Y(y0 + 7.6), W_YD * 0.76 * ppy, 5.2 * ppy); g.globalAlpha = 1;
+        } else {
+          g.fillStyle = 'rgba(255,255,255,.08)';
+          for (let x = -10; x < W_YD + 10; x += 4) { g.beginPath(); g.moveTo(X(x), Y(y0 + 10)); g.lineTo(X(x + 2), Y(y0 + 10)); g.lineTo(X(x - 8), Y(y0)); g.lineTo(X(x - 10), Y(y0)); g.fill(); }
+        }
         g.save();
         g.translate(X(CX), Y(y0 + 5)); if (flip) g.rotate(Math.PI);
         const txt = team.name.toUpperCase();
@@ -149,7 +166,8 @@
         g.restore();
       };
       if (this.user) { ez(-10, this.user, false); ez(100, this.opp, false); }
-      g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineCap = 'round';
+      g.strokeStyle = pal[3]; g.lineCap = 'round';
+      if (style === 'neon') { g.shadowColor = pal[3]; g.shadowBlur = ppy * 0.9; }
       for (let y = 0; y <= 100; y += 5) {
         g.lineWidth = y === 0 || y === 100 ? 3 : y % 10 === 0 ? 2 : 1.4;
         g.beginPath(); g.moveTo(X(0.4), Y(y)); g.lineTo(X(W_YD - 0.4), Y(y)); g.stroke();
@@ -159,7 +177,8 @@
         if (y % 5 === 0) continue;
         [[0.6, 1.4], [W_YD - 1.4, W_YD - 0.6], [22.9, 23.9], [29.4, 30.4]].forEach(([a, b]) => { g.beginPath(); g.moveTo(X(a), Y(y)); g.lineTo(X(b), Y(y)); g.stroke(); });
       }
-      g.fillStyle = 'rgba(255,255,255,.92)'; g.font = `${Math.round(ppy * 2.2)}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.shadowBlur = 0;
+      g.fillStyle = pal[4]; g.font = `${Math.round(ppy * 2.2)}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
       for (let y = 10; y <= 90; y += 10) {
         const n = String(y <= 50 ? y : 100 - y);
         [[7, Math.PI / 2], [W_YD - 7, -Math.PI / 2]].forEach(([x, rot]) => { g.save(); g.translate(X(x), Y(y)); g.rotate(rot); g.fillText(n, 0, 0); g.restore(); });
@@ -226,20 +245,23 @@
     }
 
     // ---------- animation ----------
-    runPlay(res, G) {
+    runPlay(res, G, reuse) {
       return new Promise((resolve) => {
         this.pops = [];
-        if (!res || ['penalty', 'setup2'].includes(res.kind)) {
-          if (res && res.kind === 'penalty') { this.pop('FLAG!', null, 'warn'); this.sfx('flag'); }
-          setTimeout(resolve, res && res.kind === 'penalty' ? 700 / Math.min(this.speed, 3) : 50);
+        if (!res || ['penalty', 'setup2', 'runout', 'spike', 'kneel', 'expired'].includes(res.kind)) {
+          const label = res && { penalty: 'FLAG!', spike: 'SPIKE', kneel: 'KNEEL', runout: '⏱ TIME' }[res.kind];
+          if (label) { this.pop(label, null, res.kind === 'penalty' ? 'warn' : 'plain'); this.sfx(res.kind === 'penalty' ? 'flag' : 'whistle'); }
+          setTimeout(resolve, label ? 700 / Math.min(this.speed, 3) : 50);
           return;
         }
         const offSide = res.side;
         const up = offSide === G.user;
+        this.userSide = G.user;
         this.ctxPlay = { los: res.los, dir: res.dir, offSide, G };
         const ot = G.teams[offSide], dt = G.teams[GI.util.other(offSide)];
         const oc = up ? this.colors.user : this.colors.opp, dc = up ? this.colors.opp : this.colors.user;
-        const S = build(res);
+        const S = reuse && this.lastBuilt && this.lastBuilt.res === res ? this.lastBuilt.S : build(res);
+        this.lastBuilt = { res, S };
         const ids = Object.keys(S.tracks);
         const prev = {};
         this.players.forEach((p) => (prev[p.id] = p));
@@ -290,7 +312,7 @@
           const at = p.at ? this.toAbs(p.at[0], p.at[1]) : this.ballAbs();
           this.pop(p.text, at, p.tone);
           if (p.sfx) this.sfx(p.sfx);
-          if (p.confetti) this.burst(at, p.confetti);
+          if (p.confetti) this.burst(at, p.confetti, /TOUCHDOWN/.test(p.text) && this.anim.res && this.anim.res.scored != null && this.anim.res.scored === this.userSide);
         }
       });
       S.sfx.forEach((e, i) => { if (t >= e.t && !this.anim.firedSfx.has(i)) { this.anim.firedSfx.add(i); this.sfx(e.name); } });
@@ -305,8 +327,22 @@
       const p = at || [CX, this.cam];
       this.pops.push({ text, x: p[0], y: p[1], t: 0, tone: tone || 'plain', rot: rnd(-0.12, 0.12) });
     }
-    burst(at, colors) {
+    burst(at, colors, mine) {
       const s = this.proj(at[0], at[1]);
+      const style = mine && GI.legacy ? GI.legacy.equipped('celebrate') : 'confetti';
+      const tc = this.colors ? this.colors.user : '#ffc93c';
+      if (style === 'fireworks') {
+        [[0, 0], [-0.25, -0.18], [0.25, -0.22]].forEach(([dx, dy], k) => {
+          const cx = s[0] + dx * this.w, cy = Math.max(60, s[1] + dy * this.h);
+          const cols = ['#ffd23f', '#ff5a4e', '#5ef2ff', tc];
+          for (let i = 0; i < 46; i++) { const a = (i / 46) * Math.PI * 2, sp = rnd(160, 330); this.confetti.push({ kind: 'spark', x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: rnd(2, 3.4), c: cols[(i + k) % cols.length], t: -k * 0.25, rot: 0, vr: 0 }); }
+        });
+        return;
+      }
+      if (style === 'stickers' || style === 'goldrain') {
+        for (let i = 0; i < 70; i++) this.confetti.push({ kind: style === 'goldrain' ? 'coin' : (i % 3 ? 'star' : 'coin'), x: rnd(0, this.w), y: rnd(-this.h * 0.5, -10), vx: rnd(-30, 30), vy: rnd(140, 300), r: rnd(5, 9), c: style === 'goldrain' ? '#ffc93c' : [tc, '#ffc93c', '#fff'][i % 3], t: 0, rot: rnd(0, 6), vr: rnd(-4, 4), fall: true });
+        return;
+      }
       for (let i = 0; i < 80; i++) this.confetti.push({ x: s[0], y: s[1], vx: rnd(-260, 260), vy: rnd(-520, -160), r: rnd(3, 6), c: colors[i % colors.length], t: 0, rot: rnd(0, 6), vr: rnd(-10, 10) });
     }
 
@@ -347,6 +383,11 @@
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
       } else {
         g.drawImage(fc.c, this.acrossC - (this.camX + fc.pad) * ppy, c - (110 + fc.pad - this.cam) * ppy, fc.cw, fc.ch);
+      }
+      if (this.fieldStyle === 'night') {
+        const vg = g.createRadialGradient(this.w / 2, this.h / 2, Math.min(this.w, this.h) * 0.25, this.w / 2, this.h / 2, Math.max(this.w, this.h) * 0.75);
+        vg.addColorStop(0, 'rgba(255,250,220,.06)'); vg.addColorStop(1, 'rgba(4,8,24,.45)');
+        g.fillStyle = vg; g.fillRect(0, 0, this.w, this.h);
       }
       if (!this.ctxPlay) return;
       if (this.lines) {
@@ -422,10 +463,17 @@
         g.strokeStyle = '#fff'; g.lineWidth = 1; g.beginPath(); g.moveTo(-s * 0.45, 0); g.lineTo(s * 0.45, 0); g.stroke();
         g.restore();
       }
-      this.confetti = this.confetti.filter((c2) => (c2.t += dt) < 2.4);
+      this.confetti = this.confetti.filter((c2) => (c2.t += dt) < (c2.fall ? 3.6 : 2.4));
       this.confetti.forEach((q) => {
-        q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 700 * dt; q.vx *= 0.985; q.rot += q.vr * dt;
-        g.save(); g.translate(q.x, q.y); g.rotate(q.rot); g.fillStyle = q.c; g.fillRect(-q.r, -q.r * 0.5, q.r * 2, q.r); g.restore();
+        if (q.t < 0) return;
+        q.x += q.vx * dt; q.y += q.vy * dt; q.rot += q.vr * dt;
+        if (q.kind === 'spark') { q.vy += 110 * dt; q.vx *= 0.97; q.vy *= 0.97; g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.max(0, 1 - q.t / 1.6); g.fillStyle = q.c; g.beginPath(); g.arc(q.x, q.y, q.r, 0, 7); g.fill(); g.restore(); return; }
+        if (q.fall) { q.vy += 40 * dt; } else { q.vy += 700 * dt; q.vx *= 0.985; }
+        g.save(); g.translate(q.x, q.y); g.rotate(q.rot);
+        if (q.kind === 'coin') { g.fillStyle = '#fff'; g.beginPath(); g.arc(0, 0, q.r + 1.5, 0, 7); g.fill(); g.fillStyle = q.c; g.beginPath(); g.arc(0, 0, q.r, 0, 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.45)'; g.fillRect(-q.r * 0.15, -q.r * 0.6, q.r * 0.3, q.r * 1.2); }
+        else if (q.kind === 'star') { g.fillStyle = '#fff'; starPath(g, q.r + 2); g.fill(); g.fillStyle = q.c; starPath(g, q.r); g.fill(); }
+        else { g.fillStyle = q.c; g.fillRect(-q.r, -q.r * 0.5, q.r * 2, q.r); }
+        g.restore();
       });
       this.drawWeather(g, dt);
       this.pops = this.pops.filter((p) => (p.t += dt) < 1.7);
@@ -471,6 +519,7 @@
   }
   GI.Field = Field;
 
+  function starPath(g, r) { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr2 = i % 2 ? r * 0.45 : r; g.lineTo(Math.cos(a) * rr2, Math.sin(a) * rr2); } g.closePath(); }
   function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
   function rr(g, x, y, w, h, r) {
     g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);

@@ -33,16 +33,19 @@
       </div>
       <div class="menu">
         <div id="seasonCard"></div>
+        <div id="careerCard"></div>
         <button class="btn gold block" id="btnResume" hidden>▶ Resume Game</button>
         <button class="btn block" id="btnSeason">New Franchise</button>
-        <button class="btn ghost block" id="btnQuick">Quick Game</button>
+        <div class="menu-duo"><button class="btn green" id="btnCareer">Career Mode</button><button class="btn ghost" id="btnQuick">Quick Game</button></div>
         <div class="menu2">
+          <button class="btn ghost small" id="btnTrophies">🏆 Legacy <span class="lpb" id="lpBadge">0</span></button>
+          <button class="btn ghost small" id="btnAlbum">📒 Album</button>
+          <button class="btn ghost small" id="btnStore">🛍️ Store</button>
           <button class="btn ghost small" id="btnHelp">How to Play</button>
-          <button class="btn ghost small" id="btnTrophies">🏆 Trophies</button>
           <button class="btn ghost small" id="btnSettings">⚙ Settings</button>
         </div>
       </div>
-      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.4 · Franchise mode · Add to your Home Screen to play like an app</p>
+      <p class="muted" style="text-align:center;font-size:12px;margin:0">v0.5 · Career, Legacy & League Life · Add to your Home Screen to play like an app</p>
     </div>
   </section>
 
@@ -61,23 +64,24 @@
     <div class="dock" id="pickDock" hidden><button class="btn gold" id="pickNext">Next</button></div>
   </section>
 
-  <!-- SEASON HUB -->
-  <section class="screen" id="hub">
-    <div class="wrap stack" id="hubBody" style="max-width:620px"></div>
-  </section>
-
-  <!-- DRAFT ROOM -->
+  <!-- FRANCHISE -->
+  <section class="screen" id="hub"><div class="wrap stack" id="hubBody" style="max-width:620px"></div></section>
   <section class="screen" id="draft"><div class="wrap stack" id="draftBody" style="max-width:720px"></div></section>
-
-  <!-- ROSTER -->
   <section class="screen" id="roster"><div class="wrap stack" id="rosterBody" style="max-width:820px"></div></section>
-
-  <!-- FRONT OFFICE -->
   <section class="screen" id="office"><div class="wrap stack" id="officeBody" style="max-width:720px"></div></section>
+  <section class="screen" id="trade"><div class="wrap stack" id="tradeBody" style="max-width:720px"></div></section>
+  <section class="screen" id="records"><div class="wrap stack" id="recordsBody" style="max-width:720px"></div></section>
+  <section class="screen" id="tables"><div class="wrap stack" id="tablesBody" style="max-width:720px"></div></section>
 
-  <!-- STANDINGS / BRACKET / SCHEDULE -->
-  <section class="screen" id="tables">
-    <div class="wrap stack" id="tablesBody" style="max-width:720px"></div>
+  <!-- LEGACY & CAREER -->
+  <section class="screen" id="legacy"><div class="wrap stack" id="legacyBody" style="max-width:720px"></div></section>
+  <section class="screen" id="career"><div class="wrap stack" id="careerBody" style="max-width:620px"></div></section>
+
+  <!-- HIGHLIGHT REEL -->
+  <section class="screen" id="reel">
+    <div class="fieldwrap"><canvas id="rfield" aria-label="Highlight reel"></canvas></div>
+    <div class="reelcap sticker" id="reelCap"></div>
+    <div class="reelbtns"><button class="btn ghost small" id="reelNext">⏭ Skip</button><button class="btn gold small" id="reelDone">Done</button></div>
   </section>
 
   <!-- THE GAZETTE -->
@@ -91,7 +95,8 @@
     <div class="wrap stack" style="padding-bottom:90px">
       <div class="topbar" style="margin-bottom:0"><button class="iconbtn" id="pgBack" aria-label="Back">←</button><h2 id="pgTitle">Game Day</h2></div>
       <div class="sticker matchup" id="pgMatch"></div>
-      <div id="pgMods"></div>
+      <div id="pgMods" class="stack"></div>
+      <div class="sticker panel" id="pgMode"></div>
       <div class="conds" id="pgConds"></div>
       <div class="sticker bars" id="pgBars"></div>
       <div class="sticker panel" id="pgPotw"></div>
@@ -117,6 +122,14 @@
     </div>
   </section>
 
+  <!-- CAREER GAME (key moments) -->
+  <section class="screen" id="cgame">
+    <div class="fieldwrap"><canvas id="cfield" aria-label="Football field"></canvas><div id="cbanner"></div></div>
+    <header class="scorebar sticker csb" id="csb"></header>
+    <button class="iconbtn cgquit" id="cgQuit" aria-label="Leave game">✕</button>
+    <div class="psheet sticker" id="psheet2"><div id="cpanel"></div></div>
+  </section>
+
   <!-- FINAL -->
   <section class="screen" id="final">
     <div class="wrap stack" id="finalBody" style="max-width:520px"></div>
@@ -129,9 +142,14 @@
 <script src="js/sim.js"></script>
 <script src="js/crests.js"></script>
 <script src="js/season.js"></script>
+<script src="js/league.js"></script>
+<script src="js/legacy.js"></script>
+<script src="js/career.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/anim.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/ui-franchise.js"></script>
+<script src="js/ui-extra.js"></script>
 <script>
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

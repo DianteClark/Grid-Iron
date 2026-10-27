@@ -28,7 +28,7 @@
 
   const S_ = {
     CONFS, DIVS, ROUND_NAMES, REQUIRED, CAP, UPGRADES, confOf, divOf,
-    load() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } },
+    load() { try { const s = localStorage.getItem(KEY); return s ? GI.league.migrate(JSON.parse(s)) : null; } catch (e) { console.error(e); return null; } },
     save(S) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} },
     clear() { try { localStorage.removeItem(KEY); } catch (e) {} },
   };
@@ -52,11 +52,18 @@
       id: 'p' + (S.nextId++), pos, name: newName(S), num: 0, rating, pot, age,
       clutch: ri(40, 95), dur: ri(45, 95), ego: ri(5, 95), spark: vet ? 0.02 : Math.round((R() * 0.18 + 0.04) * 100) / 100,
       college: pick(GI.COLLEGES), yrsPro: vet ? age - 22 : 0, rookie: !vet,
+      traits: GI.league.rollTraits(), career: { seasons: 0, gp: 0 }, formerTeams: [], awards: [],
     };
     p.salary = vet ? askSalary(p) : rookieSalary(p);
     return p;
   }
-  function askSalary(p) { return r1(clamp(1 + (p.rating - 66) * 0.32 + (p.ego > 75 ? 1 : 0) + (p.age < 27 ? 0.5 : 0), 0.8, 14)); }
+  S_._mkPlayer = mkPlayer;
+  function askSalary(p) {
+    let a = 1 + (p.rating - 66) * 0.32 + (p.ego > 75 ? 1 : 0) + (p.age < 27 ? 0.5 : 0);
+    if (p.raise) a *= 1.2; // award winners want to get paid
+    if ((p.traits || []).includes('diva')) a += 0.5;
+    return r1(clamp(a, 0.8, 16));
+  }
   function rookieSalary(p) { return r1(clamp(0.6 + (p.rating - 60) * 0.09, 0.6, 3.5)); }
   S_.askSalary = askSalary;
   function assignNum(team, p) {
@@ -86,18 +93,24 @@
     const slot = S_.slotFor(S, i, p.pos);
     if (!slot) return null;
     const star = Object.assign({}, p, { contract: { years: contractYears, salary: p.salary, active: slot === 'starter' } });
-    delete star.est; delete star.claimed; delete star.gradeShown;
+    delete star.est; delete star.claimed; delete star.gradeShown; delete star.sparkShown; delete star.ask; delete star.lastTeam; delete star.leftHow; delete star.raise;
+    star.joined = S.year;
+    star.hometown = p.college === GI.homeCollege(i);
+    star.traits = star.traits || GI.league.rollTraits();
+    star.career = star.career || { seasons: 0, gp: 0 };
     assignNum(r, star);
     if (slot === 'starter') r.stars.push(star); else r.bench = star;
     return slot;
   }
-  S_.release = function (S, starId) {
+  S_._addToRoster = addToRoster;
+  S_.release = function (S, starId, how) {
     const r = S.rosters[S.user];
     const s = S_.allStars(S, S.user).find((x) => x.id === starId);
     if (!s) return false;
     if (r.bench && r.bench.id === starId) r.bench = null; else r.stars = r.stars.filter((x) => x.id !== starId);
     S.expiring = (S.expiring || []).filter((x) => x !== starId);
-    S.freeAgents.push(Object.assign({}, s, { contract: null }));
+    S.freeAgents.push(Object.assign({}, s, { contract: null, lastTeam: S.user, leftHow: how || 'cut', ask: askSalary(s) }));
+    delete S.holdout[starId];
     S_.save(S);
     return s;
   };
@@ -126,6 +139,7 @@
       phase: 'draft', draft: null, scouted: [], freeAgents: [], expiring: [],
       schedule: makeSchedule(o.weeks || 12), rec: freshRec(), inj: {}, morale: Array(32).fill(0), mods: {}, news: [], paper: null,
       bracket: null, champion: null, history: [], seasonStats: { gp: 0, pf: 0, pa: 0 }, records: { titles: 0 },
+      fid: 'f' + Date.now().toString(36),
     };
     for (let i = 0; i < 32; i++) {
       const src = GI.TEAMS[i];
@@ -144,6 +158,7 @@
       const pos = pick(['RB', 'WR', 'TE', 'OL', 'DL', 'S', 'CB']);
       addToRoster(S, i, mkPlayer(S, pos, 'vet'), ri(1, 3));
     }
+    GI.league.init(S);
     S.draft = makeDraft(S, true, 4);
     S_.save(S);
     return S;
@@ -178,19 +193,30 @@
     p.sparkShown = S.up.scouts >= 3 && p.spark >= 0.14;
   }
   function makeDraft(S, opening, rounds) {
-    let order;
+    let order, lottery = null;
     if (opening) order = shuffle([...Array(32).keys()]);
     else {
       // reverse finish: worst record first, champion last
       const champ = S.champion;
       order = [...Array(32).keys()].sort((a, b) => S_.pct(S.rec[a]) - S_.pct(S.rec[b]) || (S.rec[a].pf - S.rec[a].pa) - (S.rec[b].pf - S.rec[b].pa));
       if (champ != null) { order = order.filter((x) => x !== champ); order.push(champ); }
+      // draft lottery: the six worst teams draw for the top three picks
+      const pool = order.slice(0, 6), w = [6, 5, 4, 3, 2, 1], drawn = [];
+      for (let k = 0; k < 3; k++) {
+        const ws = {}; pool.forEach((t, j) => { if (!drawn.includes(t)) ws[j] = w[j]; });
+        drawn.push(pool[+wpick(ws)]);
+      }
+      lottery = drawn.map((t, k) => ({ team: t, pick: k + 1, was: order.indexOf(t) + 1 }));
+      order = drawn.concat(order.filter((t) => !drawn.includes(t)));
     }
     const picks = [];
     for (let r = 0; r < rounds; r++) {
       const ord = opening && r % 2 ? order.slice().reverse() : order; // snake for the opening draft
-      ord.forEach((t, k) => picks.push({ round: r + 1, inRound: k + 1, team: t, pid: null, passed: false }));
+      ord.forEach((t, k) => picks.push({ round: r + 1, inRound: k + 1, team: t, orig: t, pid: null, passed: false }));
     }
+    // traded picks change hands
+    (S.pickTrades || []).forEach((tr) => { const pk = picks.find((x) => x.round === tr.round && x.orig === tr.orig); if (pk) pk.team = tr.owner; });
+    S.pickTrades = [];
     // prospect pool
     const pool = [];
     const n = Math.round(32 * rounds * 1.35);
@@ -215,8 +241,15 @@
       pool.push(p);
     });
     S.scouted = [];
-    pool.forEach((p) => estFor(S, p, p.claimed ? 2 : null));
-    return { year: S.year, opening, rounds, picks, cur: 0, pool, log: [] };
+    // a Career Mode prospect enters this draft
+    if (S.careerProspect) {
+      const cp = Object.assign({}, S.careerProspect, { claimed: false, careerPlayer: true });
+      cp.salary = rookieSalary(cp);
+      pool.push(cp);
+      S.careerProspect = null;
+    }
+    pool.forEach((p) => { p.ask = p.rookie ? null : p.ask; estFor(S, p, p.claimed ? 2 : p.careerPlayer ? 1 : null); });
+    return { year: S.year, opening, rounds, picks, cur: 0, pool, log: [], lottery };
   }
   S_.draftCur = (S) => (S.draft && S.draft.cur < S.draft.picks.length ? S.draft.picks[S.draft.cur] : null);
   // what the user must take right now (opening draft: K/P, QB, LB by round 3)
@@ -235,6 +268,7 @@
       if (must && !must.includes(p.pos)) return { ok: false, why: 'You still need a ' + must.map((x) => GI.POS[x].label).join(' / ') };
       if (S.cash < p.salary) return { ok: false, why: `Can't afford ${S_.money(p.salary)}/yr` };
     }
+    if (S_.slotFor(S, teamIdx, p.pos) === 'starter' && S_.salaryTotal(S, teamIdx) + p.salary > (S.cap || 38)) return { ok: false, why: `Over the ${S_.money(S.cap || 38)} salary cap` };
     return { ok: true };
   };
   function takePlayer(S, cur, p) {
@@ -243,23 +277,37 @@
     cur.pid = p.id;
     const years = p.rookie ? ROOKIE_YEARS : ri(1, 3);
     const slot = addToRoster(S, cur.team, p, years);
-    d.log.push({ round: cur.round, inRound: cur.inRound, team: cur.team, p: { id: p.id, pos: p.pos, name: p.name, rating: p.rating, est: p.est, rookie: p.rookie }, slot });
+    d.log.push({ round: cur.round, inRound: cur.inRound, team: cur.team, p: { id: p.id, pos: p.pos, name: p.name, rating: p.rating, est: p.est, rookie: p.rookie, college: p.college, career: !!p.careerPlayer }, slot });
     d.cur++;
+    const star = S_.allStars(S, cur.team).find((x) => x.id === p.id);
+    if (cur.team === S.user && star) {
+      if (star.hometown) { S.hype = clamp((S.hype || 40) + 5, 0, 100); (d.hometown = d.hometown || []).push(star.name); }
+      if (GI.legacy) GI.legacy.collect([GI.league.sticker(S, star, S.user)], p.careerPlayer ? 'Career' : null);
+    }
+    if (p.careerPlayer && GI.career) GI.career.onFranchiseDraft(S, cur.team, cur, star);
     return slot;
   }
   function cpuChoose(S, t) {
     const d = S.draft, cur = S_.draftCur(S);
     const r = S.rosters[t];
     const missing = REQUIRED.filter((p) => !r.stars.some((s) => s.pos === p));
-    // pass sometimes once the core is set (budget), so rosters land at 3–5 stars early on
-    if (!missing.length && r.stars.length >= (d.opening ? 3 : 5) && R() < (d.opening ? 0.3 : 0.35 + r.stars.length * 0.06)) return null;
+    // pass sometimes once the core is set (budget), so rosters land at 3–5 stars early on; dynasties face hungrier rivals
+    const passP = (d.opening ? 0.3 : 0.35 + r.stars.length * 0.06) - (S.dynasty || 0) * 0.08;
+    if (!missing.length && r.stars.length >= (d.opening ? 3 : 5) && R() < passP) return null;
+    const offN = r.stars.filter((s) => OFFENSE.includes(s.pos)).length, defN = r.stars.filter((s) => ['LB', 'DL', 'S', 'CB'].includes(s.pos)).length;
     let best = null, bv = -1e9;
     d.pool.forEach((p) => {
       if (p.claimed && cur.round <= 2) return; // the user's scouted prospects are off-limits early
       if (!S_.slotFor(S, t, p.pos)) return;
       if (d.opening && cur.round <= 3 && missing.length >= 3 - cur.round + 1 && !missing.includes(p.pos)) return;
+      if (!S_.canDraft(S, t, p).ok) return;
       let v = p.rating + (p.pot - p.rating) * (p.age < 25 ? 0.45 : 0.15) + R() * 6;
       if (missing.includes(p.pos)) v += 14;
+      // draft for need: balance the two sides of the ball, fill empty positions
+      if (OFFENSE.includes(p.pos) && offN < 2) v += 5;
+      if (!OFFENSE.includes(p.pos) && p.pos !== 'KP' && defN < 2) v += 5;
+      if (!r.stars.some((s) => s.pos === p.pos)) v += 3;
+      if (p.careerPlayer) v += 4;
       if (S_.slotFor(S, t, p.pos) === 'bench') v -= 8;
       if (v > bv) { bv = v; best = p; }
     });
@@ -333,6 +381,7 @@
     const d = S.draft;
     const mine = d.log.filter((x) => x.team === S.user);
     const p = blankPaper(S, d.opening ? 'Opening Draft' : 'Draft Day');
+    if (d.lottery) p.lottery = d.lottery;
     const first = mine[0];
     p.headline = first ? `${T(S.user).name.toUpperCase()} TAB ${GI.POS[first.p.pos].label} ${first.p.name.split(' ').pop().toUpperCase()} WITH PICK NO. ${(first.round - 1) * 32 + first.inRound}` : `${T(S.user).name.toUpperCase()} SIT OUT THE DRAFT`;
     p.sub = d.opening ? `Thirty-two franchises built from scratch. ${T(S.user).city} added ${mine.length} star${mine.length === 1 ? '' : 's'}.` : `${T(S.user).city} added ${mine.length} star${mine.length === 1 ? '' : 's'} to the roster.`;
@@ -344,6 +393,10 @@
     ];
     const steal = d.log.filter((x) => x.round >= 2).sort((a, b) => b.p.rating - a.p.rating)[0];
     if (steal) p.sections.push({ title: 'Steal of the Draft', items: [`${T(steal.team).abbr} grabbed ${GI.POS[steal.p.pos].label} ${steal.p.name} (${steal.p.rating} OVR) in round ${steal.round}.`] });
+    if (d.lottery) p.sections.push({ title: 'Draft Lottery', items: d.lottery.map((x) => `Pick ${x.pick}: ${T(x.team).city} ${T(x.team).name}${x.was !== x.pick ? ` (jumped from ${x.was})` : ''}`) });
+    if (d.hometown && d.hometown.length) p.sections.push({ title: 'Hometown Heroes', items: d.hometown.map((n) => `🏠 ${n} stays home to play for ${T(S.user).city}. The fans are buzzing (+5 hype).`) });
+    const cp = d.log.find((x) => x.p.career);
+    if (cp) p.sections.unshift({ title: '🎮 Your Career Player', items: [`${GI.POS[cp.p.pos].label} ${cp.p.name} went in round ${cp.round} (#${(cp.round - 1) * 32 + cp.inRound} overall) to ${cp.team === S.user ? 'YOU' : T(cp.team).city + ' ' + T(cp.team).name}.`] });
     S.draft = null;
     S.phase = 'camp';
     pushPaper(S, p);
@@ -360,18 +413,28 @@
   S_.FOCUS = FOCUS;
   S_.runCamp = function (S, focus, intense) {
     if (intense) { S.cash -= 3; S.fin.events += 3; }
-    const breaks = [], growth = [];
+    const breaks = [], growth = [], mentors = [];
     for (let i = 0; i < 32; i++) {
       const mine = i === S.user;
       const r = S.rosters[i];
-      const f = mine ? focus : pick(Object.keys(FOCUS));
-      const gymLv = mine ? S.up.gym : 2;
+      // CPU teams work on their weakest unit
+      let f = mine ? focus : pick(Object.keys(FOCUS));
+      if (!mine) { const b = r.base; f = (b.run + b.pass + b.ol) / 3 < (b.runD + b.passD + b.rush) / 3 ? 'offense' : 'defense'; if (R() < 0.25) f = pick(Object.keys(FOCUS)); }
+      const gymLv = mine ? S.up.gym : 2 + Math.min(2, S.dynasty || 0) * 0.5;
       const mult = mine && intense ? 2 : 1;
       for (const k in FOCUS[f].base) r.base[k] = clamp(r.base[k] + FOCUS[f].base[k] * mult, 40, 85);
+      const all = S_.allStars(S, i);
+      const mentorsHere = all.filter((m) => (m.traits || []).includes('mentor') && m.age >= 27);
       S_.allStars(S, i).forEach((s) => {
         const before = s.rating;
         let g = s.age <= 25 ? gauss(2.5, 2) : s.age <= 29 ? gauss(0.5, 1.5) : s.age <= 32 ? gauss(-1.5, 1.5) : gauss(-3, 2);
         g += (gymLv - 1) * 0.5 + (mine && intense ? 1 : 0);
+        if ((s.traits || []).includes('gymrat')) g += 1.5;
+        // a veteran mentor at the same position (or side of the ball) speeds up young stars
+        if (s.age <= 25) {
+          const m = mentorsHere.find((x) => x.id !== s.id && x.pos === s.pos) || mentorsHere.find((x) => x.id !== s.id && OFFENSE.includes(x.pos) === OFFENSE.includes(s.pos));
+          if (m) { const b = m.pos === s.pos ? 1.8 : 0.7; g += b; if (mine) mentors.push(`🎓 ${GI.shortName(m.name)} took ${GI.shortName(s.name)} under his wing (+${b})`); }
+        }
         if (f === 'special' && s.pos === 'KP') g += 2;
         if (f === 'conditioning') s.dur = clamp(s.dur + 6, 30, 99);
         s.rating = Math.round(clamp(s.rating + g, 45, Math.max(s.pot, s.rating)));
@@ -392,6 +455,7 @@
       if (st) { S.inj[st.id] = ri(1, 2); growth.push({ name: st.name, pos: st.pos, d: 0, rating: st.rating, hurt: true }); }
     }
     S.campFocus = focus;
+    GI.league.seasonStart(S);
     const mineBreaks = breaks.filter((b) => b.team === S.user);
     const p = blankPaper(S, 'Spring Training');
     if (mineBreaks.length) {
@@ -412,6 +476,8 @@
       { title: 'Your Camp Report', items: growth.map((g) => `${GI.POS[g.pos].label} ${g.name}: ${g.hurt ? 'tweaked a hamstring 🚑' : (g.d >= 0 ? '+' : '') + g.d + ' → ' + g.rating}`) },
       { title: 'Breakthroughs Around the League', items: breaks.length ? breaks.slice(0, 8).map((b) => `${T(b.team).abbr} ${GI.POS[b.pos].label} ${b.name} +${b.jump} (${b.rating})`) : ['None this spring.'] },
     ];
+    if (mentors.length) p.sections.splice(1, 0, { title: 'Mentors', items: mentors });
+    p.sections.push({ title: "The Owner's Expectations", items: S.goals.map((g) => `🎯 ${g.text} (+${S_.money(g.reward)})`) });
     S.phase = 'regular';
     pushPaper(S, p);
     return p;
@@ -442,12 +508,15 @@
     }
     return null;
   };
-  S_.injuredIds = (S) => Object.keys(S.inj).filter((k) => S.inj[k] > 0);
-  S_.injuredFor = (S, i) => S_.allStars(S, i).filter((s) => S.inj[s.id] > 0).map((s) => ({ s, weeks: S.inj[s.id] }));
+  S_.injuredIds = (S) => Object.keys(S.inj).filter((k) => S.inj[k] > 0).concat(Object.keys(S.holdout || {}));
+  S_.injuredFor = (S, i) => S_.allStars(S, i).filter((s) => S.inj[s.id] > 0 || (S.holdout || {})[s.id]).map((s) => ({ s, weeks: S.inj[s.id] || S.holdout[s.id], holdout: !!(S.holdout || {})[s.id] }));
+  // questionable = a one-week injury: you can push him to play hurt
+  S_.questionable = (S, i) => S_.allStars(S, i).filter((s) => S.inj[s.id] === 1 && !(S.holdout || {})[s.id]);
   function homeCrowd(S, i) {
     const r = S.rec[i], wp = S_.pct(r);
     const lv = i === S.user ? S.up.stadium : 2;
-    return clamp(30 + lv * 9 + wp * 25 + R() * 10, 20, 95);
+    const hype = i === S.user ? ((S.hype || 40) - 50) / 4 : 0;
+    return clamp(30 + lv * 9 + wp * 25 + R() * 10 + hype, 20, 97);
   }
   S_.gameOptions = function (S) {
     const c = S_.current(S);
@@ -460,12 +529,20 @@
     if (c.playoff) crowdLevel = c.ironBowl ? 95 : 90;
     if (m.crowdLevel && c.home) crowdLevel = m.crowdLevel;
     const teamData = {}; teamData[homeIdx] = S.rosters[homeIdx]; teamData[awayIdx] = S.rosters[awayIdx];
+    // playing through a minor injury
+    const hurt = Object.keys(S.playHurt || {}).filter((id) => S.inj[id] === 1);
+    if (hurt.length) teamData[S.user] = Object.assign({}, S.rosters[S.user], { stars: S.rosters[S.user].stars.map((s) => hurt.includes(s.id) ? Object.assign({}, s, { hurt: true }) : s) });
     let starMeter = m.starMeter ? Object.assign({}, m.starMeter) : {};
     if (S.campFocus === 'conditioning') S.rosters[S.user].stars.forEach((s) => { if (starMeter[s.id] == null) starMeter[s.id] = 40 + ri(0, 15); });
+    const ed = GI.league.edgesFor(S, homeIdx, awayIdx);
+    // career totals going in, so milestones can pop mid-game
+    const careerBase = {};
+    S_.allStars(S, S.user).forEach((s) => { const b = Object.assign({}, s.career || {}); const ss = S.sstats[s.id] || {}; GI.PSK.forEach((k) => { if (ss[k]) b[k] = (b[k] || 0) + ss[k]; }); careerBase[s.id] = b; });
     return {
       user: S.user, opp: c.opp, userHome: c.home, qMin: S.qMin, diff: S.diff, teamData,
-      injured: S_.injuredIds(S), morale, weather: m.weather || null, crowdLevel,
+      injured: S_.injuredIds(S).filter((id) => !hurt.includes(id)), morale, weather: m.weather || null, crowdLevel,
       playoff: c.playoff, intel: m.intel ? true : null, film: !!m.film, starMeter, label: c.label,
+      edges: ed.edges, rivalry: ed.rivalry, book: S.book.game, careerBase, hurt,
     };
   };
 
@@ -493,10 +570,13 @@
       if (win != null) { S.morale[win] = clamp(S.morale[win] + 2, -10, 10); S.morale[lose] = clamp(S.morale[lose] - 2, -10, 10); }
     }
     GI.gameInjuries(G).forEach((i) => {
-      if (S.inj[i.id] > 0) return;
-      S.inj[i.id] = injWeeks(S, i.team);
-      (S._newInj = S._newInj || []).push({ team: i.team, name: i.name, pos: i.pos, weeks: S.inj[i.id] });
+      const hurtPlay = (G.hurtIds || []).includes(i.id);
+      if ((S.holdout || {})[i.id]) return;
+      if (S.inj[i.id] > 0 && !hurtPlay) return;
+      S.inj[i.id] = injWeeks(S, i.team) + (hurtPlay ? 2 : 0);
+      (S._newInj = S._newInj || []).push({ team: i.team, name: i.name, pos: i.pos, weeks: S.inj[i.id], aggravated: hurtPlay });
     });
+    GI.league.afterGame(S, g, G, playoff);
     (G.benchUsed || []).forEach((b) => {
       const r = S.rosters[b.team];
       if (r.bench && r.bench.id === b.id && !r.bench.contract.active) {
@@ -508,7 +588,7 @@
   S_.finishWeek = function (S, userG) {
     const c = S_.current(S);
     S._newInj = []; S._benchNews = [];
-    Object.keys(S.inj).forEach((k) => { S.inj[k] = Math.max(0, S.inj[k] - 1); if (!S.inj[k]) delete S.inj[k]; });
+    const healing = Object.keys(S.inj).filter((k) => S.inj[k] > 0); // these heal after this week's games
     const highlights = [], results = [];
     const playoff = S.phase === 'playoffs';
     const games = playoff ? S.bracket.rounds[S.bracket.round] : S.schedule[S.week];
@@ -530,7 +610,8 @@
         // gate receipts
         if (g.h === S.user) {
           const wp = S_.pct(S.rec[S.user]);
-          const gate = playoff ? 3 + S.up.stadium * 0.5 : (1.4 + 0.4 * (S.up.stadium - 1)) * (0.7 + 0.6 * wp) * (S.mods.crowdLevel ? 1.3 : 1);
+          const hypeM = 0.75 + (S.hype || 40) / 200;
+          const gate = (playoff ? 3 + S.up.stadium * 0.5 : (1.4 + 0.4 * (S.up.stadium - 1)) * (0.7 + 0.6 * wp) * (S.mods.crowdLevel ? 1.3 : 1)) * hypeM;
           if (playoff) S.fin.playoffs += gate; else S.fin.tickets += gate;
           S.cash += gate;
         }
@@ -546,6 +627,10 @@
       results.push(g);
     });
     S.mods = {};
+    healing.forEach((k) => { if (S.inj[k] > 0) { S.inj[k]--; if (!S.inj[k]) delete S.inj[k]; } });
+    S.playHurt = {};
+    // what the coach said at the podium carries into next week
+    if (S.pressMods) { S.mods.morale = (S.mods.morale || 0) + (S.pressMods.morale || 0); if (S.pressMods.starMeter) S.mods.starMeter = Object.assign({}, S.pressMods.starMeter); S.pressMods = null; }
     const paper = buildPaper(S, c, mine, results, highlights);
     if (S.phase === 'regular') {
       S.week++;
@@ -556,13 +641,23 @@
   };
   function simUser(S, g) {
     const o = S_.gameOptions(S);
-    const G = GI.newGame(Object.assign({}, o, { qMin: 8, user: g.h, opp: g.a, userHome: true, potw: { off: 'short', def: 'zone' } }));
+    const G = GI.newGame(Object.assign({}, o, { qMin: S.qMin, user: g.h, opp: g.a, userHome: true, potw: { off: 'short', def: 'zone' } }));
     G.diff = 'sim';
-    return GI.finishAuto(G);
+    G.hurtIds = o.hurt;
+    GI.finishAuto(G);
+    // the sim still produces highlights for the season reel
+    const me = g.h === S.user ? 'home' : 'away';
+    G.reelCands = (G.lastAuto || []).filter((r) => r.crazy || r.td || r.clash).map((r) => ({ res: r, score: GI.league.reelScore(r) + (r.side === me || (r.crazy && r.crazy.team === me) ? 3 : -4), user: me, home: g.h, away: g.a, text: r.text })).filter((x) => x.score > 3).sort((a, b) => b.score - a.score).slice(0, 3);
+    G.crazyLog = {};
+    (G.lastAuto || []).forEach((r) => { if (r.crazy && r.crazy.team === me) G.crazyLog[r.crazy.name] = (G.crazyLog[r.crazy.name] || 0) + 1; });
+    return G;
   }
   function simCPU(S, g, playoff) {
     const teamData = {}; teamData[g.h] = S.rosters[g.h]; teamData[g.a] = S.rosters[g.a];
-    return GI.simGame(g.h, g.a, { qMin: 8, injured: S_.injuredIds(S), teamData, playoff, crowdLevel: playoff ? 88 : homeCrowd(S, g.h), morale: { home: S.morale[g.h] || 0, away: S.morale[g.a] || 0 } });
+    const ed = GI.league.edgesFor(S, g.h, g.a);
+    // in the playoffs, CPU teams push questionable stars onto the field
+    const inj = S_.injuredIds(S).filter((id) => !(playoff && S.inj[id] === 1 && R() < 0.6));
+    return GI.simGame(g.h, g.a, { qMin: S.qMin, injured: inj, teamData, playoff, crowdLevel: playoff ? 88 : homeCrowd(S, g.h), morale: { home: S.morale[g.h] || 0, away: S.morale[g.a] || 0 }, edges: ed.edges, rivalry: ed.rivalry });
   }
   function pushPaper(S, p) {
     S.paper = p;
@@ -589,6 +684,7 @@
     const winners = rd.map((g) => g.win);
     const seedOf = B.seedOf;
     if (B.round === 0) {
+      if (winners.includes(S.user)) GI.legacy && GI.legacy.addLP(3, 'Playoff win');
       const next = [];
       [0, 1].forEach((ci) => {
         const w = winners.filter((t) => confOf(t) === ci).sort((a, b) => seedOf[a] - seedOf[b]);
@@ -597,6 +693,7 @@
       });
       B.rounds.push(next); B.round = 1;
     } else if (B.round === 1) {
+      if (winners.includes(S.user)) GI.legacy && GI.legacy.addLP(3, 'Playoff win');
       B.rounds.push([0, 1].map((ci) => {
         const w = winners.filter((t) => confOf(t) === ci).sort((a, b) => seedOf[a] - seedOf[b]);
         return { h: w[0], a: w[1], conf: ci, hs: null, as: null, done: false };
@@ -604,17 +701,22 @@
       B.round = 2;
     } else if (B.round === 2) {
       const better = S_.sorted(S, winners);
-      if (winners.includes(S.user)) { S.fin.bonus += 4; S.cash += 4; }
+      if (winners.includes(S.user)) { S.fin.bonus += 4; S.cash += 4; GI.legacy && GI.legacy.addLP(6, 'Conference champions'); }
       B.rounds.push([{ h: better[0], a: better[1], conf: -1, hs: null, as: null, done: false, neutral: true }]);
       B.round = 3;
     } else {
       S.champion = winners[0];
       paper.champion = winners[0];
       S.history.unshift({ year: S.year, champ: winners[0], user: S.user, rec: S_.recStr(S.rec[S.user]) });
+      // championship rings for everyone on the roster
+      S_.allStars(S, winners[0]).forEach((st) => (st.rings = (st.rings || 0) + 1));
       if (winners[0] === S.user) {
         // the Iron-Bowl purse: money for next year's draft
         S.fin.bonus += 15; S.cash += 15; S.records.titles++;
         paper.bonus = 15;
+        paper.special = 'champs';
+        S.hype = clamp((S.hype || 40) + 15, 0, 100);
+        if (GI.legacy) { GI.legacy.addLP(25, 'Iron-Bowl champions'); GI.legacy.collect(S_.allStars(S, S.user).map((st) => GI.league.sticker(S, st, S.user)), 'Champion'); }
         try {
           const t = JSON.parse(localStorage.getItem('gridiron_trophies') || '[]');
           t.unshift({ year: S.year, team: S.user, kind: 'Iron-Bowl Champions', rec: S_.recStr(S.rec[S.user]) });
@@ -628,11 +730,15 @@
   // ================= offseason =================
   function startOffseason(S, paper) {
     S.phase = 'offseason';
+    // awards night & the record book (before anyone ages or retires)
+    const awards = GI.league.computeAwards(S);
+    const recs = GI.league.rollSeason(S);
+    paper.awards = S.year;
     // books for the year
     const salaries = S_.salaryTotal(S, S.user);
-    const upkeep = Object.values(S.up).reduce((t, l) => t + (l - 1) * 0.5, 0);
-    const staff = 4;
-    const tv = 30;
+    const upkeep = Object.values(S.up).reduce((t, l) => t + (l - 1) * 1.1, 0);
+    const staff = r1(GI.league.staffCost(S, S.user));
+    const tv = 25;
     const rev = tv + S.fin.tickets + S.fin.playoffs + S.fin.bonus;
     const exp = salaries + upkeep + staff;
     S.cash += tv - salaries - upkeep - staff; // gates & bonuses were banked as they came in
@@ -640,7 +746,7 @@
     S.fin.reports.length = Math.min(S.fin.reports.length, 6);
     S.fin.tickets = 0; S.fin.playoffs = 0; S.fin.bonus = 0; S.fin.events = 0;
     // contracts run down, players age, legends retire
-    const retired = [], cpuMoves = [];
+    const retired = [], cpuMoves = [], hofs = [], newCoaches = [];
     S.expiring = [];
     for (let i = 0; i < 32; i++) {
       const r = S.rosters[i];
@@ -649,7 +755,13 @@
         if (s.contract.active) s.contract.years--;
       });
       const keep = (s) => {
-        if (s.age >= 37 || (s.age >= 34 && R() < 0.45) || (s.age >= 32 && s.rating < 70 && R() < 0.4)) { retired.push({ team: i, s }); return false; }
+        if (s.age >= 37 || (s.age >= 34 && R() < 0.45) || (s.age >= 32 && s.rating < 70 && R() < 0.4)) {
+          retired.push({ team: i, s });
+          const out = GI.league.onRetire(S, s, i);
+          if (out.hof) hofs.push(out.hof);
+          if (out.coach) newCoaches.push({ c: out.coach, team: i });
+          return false;
+        }
         return true;
       };
       r.stars = r.stars.filter(keep);
@@ -657,16 +769,33 @@
       S_.allStars(S, i).forEach((s) => {
         if (s.contract.years > 0) return;
         if (i === S.user) { S.expiring.push(s.id); s.ask = askSalary(s); return; }
-        if (s.rating >= 72 && R() < 0.72) { s.contract = { years: ri(1, 3), salary: askSalary(s), active: true }; cpuMoves.push(`${T(i).abbr} re-sign ${GI.POS[s.pos].label} ${s.name}`); }
+        const ask = askSalary(s);
+        const room = (S.cap || 38) - (S_.salaryTotal(S, i) - s.contract.salary);
+        if (s.rating >= 72 && R() < 0.72 && ask <= room) { s.contract = { years: ri(1, 3), salary: ask, active: true }; delete s.raise; cpuMoves.push(`${T(i).abbr} re-sign ${GI.POS[s.pos].label} ${s.name}`); }
         else {
           if (r.bench && r.bench.id === s.id) r.bench = null; else r.stars = r.stars.filter((x) => x.id !== s.id);
-          S.freeAgents.push(Object.assign({}, s, { contract: null }));
-          cpuMoves.push(`${T(i).abbr} let ${GI.POS[s.pos].label} ${s.name} walk`);
+          S.freeAgents.push(Object.assign({}, s, { contract: null, lastTeam: i, leftHow: 'walked', ask }));
+          cpuMoves.push(`${T(i).abbr} let ${GI.POS[s.pos].label} ${s.name} walk${ask > room ? ' (cap crunch)' : ''}`);
         }
       });
     }
     paper.offseason = true;
+    const carousel = GI.league.offseasonLeague(S);
+    const review = GI.league.ownerReview(S);
+    S.review = review;
+    if (review.fired) S.fired = { offers: GI.league.jobOffers(S) };
+    S.faDone = false; S.faOffers = {};
+    const A = awards;
+    const nm = (x) => x ? `${T(x.team).abbr} ${GI.POS[x.pos] ? GI.POS[x.pos].label + ' ' : ''}${x.name}${x.line ? ' — ' + x.line : ''}` : '—';
     paper.sections = (paper.sections || []).concat([
+      { title: '🏆 Awards Night', items: [`MVP: ${nm(A.mvp)}`, `Offensive POY: ${nm(A.opoy)}`, `Defensive POY: ${nm(A.dpoy)}`, `Rookie of the Year: ${nm(A.roy)}`, `Coach of the Year: ${A.coy.name} (${T(A.coy.team).abbr}, ${A.coy.line})`] },
+      { title: `The Owner's Box`, items: [`${S.owner.name} ${review.verdict}. ${review.met}/${review.total} goals met${review.bonus ? `, ${S_.money(review.bonus)} in bonuses` : ''}.`].concat(review.res.map((x) => `${x.done ? '✅' : '❌'} ${x.g.text}`)) },
+    ]);
+    if (hofs.length) paper.sections.push({ title: '🏛️ Hall of Fame Class', items: hofs.map((h) => `${GI.POS[h.pos].label} ${h.name} (${T(h.team).abbr}) — ${h.line}${h.rings ? ` · ${h.rings}× champ` : ''}`) });
+    if (recs.length) paper.sections.push({ title: '📜 Record Book', items: recs.slice(0, 6).map((r) => `New ${r.scope} record: ${r.name} (${T(r.team).abbr}) — ${r.v.toLocaleString()} ${GI.STAT_NAME[r.key]}`) });
+    if (newCoaches.length) paper.sections.push({ title: 'From the Field to the Sideline', items: newCoaches.slice(0, 4).map((x) => `${x.c.name} retires and wants to coach (${x.c.rating} rtg${x.c.style ? ', ' + (GI.OC_STYLES[x.c.style] || GI.DC_STYLES[x.c.style]) : ''}). He's in the coaching pool${x.team === S.user ? ' — hire him from the Front Office' : ''}.`) });
+    if (carousel.length) paper.sections.push({ title: 'Coaching Carousel', items: carousel.slice(0, 7) });
+    paper.sections = paper.sections.concat([
       { title: 'Front Office Report', items: [`Revenue ${S_.money(rev)} · Expenses ${S_.money(exp)}`, `Cash on hand: ${S_.money(S.cash)}`].concat(paper.bonus ? [`Iron-Bowl purse: +${S_.money(paper.bonus)} for the draft!`] : []) },
       { title: 'Retirements', items: retired.length ? retired.slice(0, 8).map((x) => `${T(x.team).abbr} ${GI.POS[x.s.pos].label} ${x.s.name} (age ${x.s.age})${x.team === S.user ? ' 👋' : ''}`) : ['Nobody hung up the cleats this year.'] },
       { title: 'Contract Watch', items: S.expiring.length ? S.expiring.map((id) => { const s = S_.allStars(S, S.user).find((x) => x.id === id); return `${GI.POS[s.pos].label} ${s.name} wants ${S_.money(s.ask)}/yr`; }) : ['No expiring deals on your roster.'] },
@@ -675,11 +804,15 @@
   }
   S_.resign = function (S, starId, years) {
     const s = S_.allStars(S, S.user).find((x) => x.id === starId);
-    if (!s) return false;
-    s.contract = { years, salary: s.ask || askSalary(s), active: true };
+    if (!s) return { ok: false, why: 'Not on the roster' };
+    const sal = s.ask || askSalary(s);
+    const others = S_.salaryTotal(S, S.user) - (s.contract && s.contract.active ? s.contract.salary : 0);
+    if (others + sal > (S.cap || 38)) return { ok: false, why: `That puts you over the ${S_.money(S.cap || 38)} cap. Clear room first.` };
+    s.contract = { years, salary: sal, active: true };
+    delete s.raise;
     S.expiring = S.expiring.filter((x) => x !== starId);
     S_.save(S);
-    return true;
+    return { ok: true };
   };
   S_.upgradeCost = (S, key) => UPGRADES[key].cost[S.up[key] + 1];
   S_.upgrade = function (S, key) {
@@ -691,8 +824,11 @@
   };
   S_.advanceToDraft = function (S) {
     // unsigned expiring stars leave
-    (S.expiring || []).forEach((id) => S_.release(S, id));
+    (S.expiring || []).forEach((id) => S_.release(S, id, 'walked'));
     S.expiring = [];
+    // the rest of the league fills holes from free agency before the draft
+    if (!S.faDone) GI.league.runFA(S);
+    S.lastChamp = S.champion;
     S.year++;
     S.week = 0;
     S.schedule = makeSchedule(S.weeks);
@@ -704,6 +840,7 @@
     S.morale = S.morale.map((m) => Math.round(m / 2));
     S.seasonStats = { gp: 0, pf: 0, pa: 0 };
     S.phase = 'draft';
+    S.review = null;
     S_.save(S);
   };
 
@@ -767,7 +904,10 @@
     (S._benchNews || []).forEach((b) => { if (b.team === S.user) notes.push(`🪑 Backup ${GI.POS[b.pos].label} ${b.name} stepped in for ${GI.shortName(b.for)} — his contract is now active.`); });
     (S._breaks || []).forEach((b) => notes.push(`⚡ BREAKTHROUGH: rookie ${GI.POS[b.pos].label} ${b.name} jumps +${b.jump} to ${b.rating} after his big game!`));
     S._breaks = [];
+    (S._newInj || []).filter((i) => i.team === S.user && i.aggravated).forEach((i) => notes.push(`🩹 ${GI.shortName(i.name)} aggravated the injury he played through. Out ${i.weeks} weeks.`));
     if (notes.length) p.sections.push({ title: 'Locker Room', items: notes });
+    if (S._quote) { p.quote = S._quote; S._quote = null; }
+    GI.league.weekly(S, p);
     const nx = nextUserGame(S);
     p.next = nx;
     if (nx) p.event = makeEvent(S, nx);
@@ -789,8 +929,11 @@
     const egoStar = roster.stars.filter((s) => s.ego > 75 && !(S.inj[s.id] > 0))[0];
     const streak = S.rec[S.user].streak;
     const c = roster.coaches;
+    // stars who've outplayed their contract want a new deal now
+    const underpaid = roster.stars.filter((s) => s.contract && s.contract.active && s.contract.years <= 2 && askSalary(s) >= s.contract.salary + 2.5 && s.ego >= 50 && !S.holdout[s.id] && !(S.inj[s.id] > 0))[0];
     const types = {
-      leak: 11, film: 10, dinner: 10, storm: 8, sellout: nx.home ? 8 : 0, none: 12,
+      leak: 11, film: 10, dinner: 10, storm: 8, sellout: nx.home ? 4 + Math.max(0, (S.hype || 40) - 40) / 6 : 0, none: 12,
+      holdout: underpaid && !S.story.some((x) => x.kind === 'holdoutAsk') ? 9 : 0,
       night: star ? 9 : 0, ego: star ? 8 : 0,
       trade: egoStar && (streak <= -2 || R() < 0.25) ? 9 : 0,
       poach: c.oc.rating >= 74 || c.dc.rating >= 74 ? 6 : 0,
@@ -819,7 +962,7 @@
         const who = c.oc.rating >= c.dc.rating ? 'oc' : 'dc';
         const co = c[who];
         const rival = T(pick([...Array(32).keys()].filter((x) => x !== S.user)));
-        return { kind: 'choice', tag: 'STAFF DRAMA', coach: who, title: `${rival.name} Try to Poach ${co.name.split(' ').pop()}`, body: `${rival.city} offered your ${co.role.toLowerCase()} a promotion behind your back. He's listening.`,
+        return { kind: 'choice', tag: 'STAFF DRAMA', coach: who, rival: rival.idx, title: `${rival.name} Try to Poach ${co.name.split(' ').pop()}`, body: `${rival.city} offered your ${co.role.toLowerCase()} a promotion behind your back. He's listening.`,
           choices: [{ id: 'match', label: 'Match the offer', desc: `Costs ${S_.money(2)}, he stays and is fired up (+3 rating)` }, { id: 'letgo', label: 'Let him go', desc: 'A new coordinator steps in — could be better or worse' }] };
       }
       case 'hotseat': return { kind: 'choice', tag: 'HOT SEAT', title: `Fans Call for Coach ${c.hc.name.split(' ').pop()}'s Job`, body: `${-streak} straight losses and "FIRE ${c.hc.name.split(' ').pop().toUpperCase()}" banners are flying in ${ut.city}.`,
@@ -832,6 +975,11 @@
         estFor(S, p, w);
         return { kind: 'choice', tag: 'SCOUT REPORT', prospect: p, early: nx.early, title: `Scouts Rave About ${GI.POS[pos].label} ${p.name}`, body: `Your scouts caught the ${p.college} ${GI.POS[pos].full.toLowerCase()} in person. Estimated ${p.est[0]}–${p.est[1]} OVR, potential grade ${p.gradeShown}${p.sparkShown ? ', with real ⚡ Spark' : ''}. ${nx.early ? 'It\'s early — his stock could still rise or fall before the draft.' : 'Late in the year, what you see is what you get.'}`,
           choices: [{ id: 'pursue', label: `Pursue (${S_.money(1)})`, desc: 'Locks him to you through round 2 of the draft, sharper rating range' }, { id: 'pass', label: 'Pass', desc: 'He goes into the open draft pool' }] };
+      }
+      case 'holdout': {
+        const sn2 = GI.shortName(underpaid.name), ask = askSalary(underpaid);
+        return { kind: 'choice', tag: 'CONTRACT STANDOFF', star: underpaid.id, ask, title: `${sn2} Wants a New Deal — Now`, body: `The ${GI.POS[underpaid.pos].full.toLowerCase()} is making ${S_.money(underpaid.contract.salary)} and playing like a ${S_.money(ask)} star. His agent says he won't report until he's paid.`,
+          choices: [{ id: 'pay', label: `Pay him (${S_.money(ask)}/yr, 3 yrs)`, desc: (S_.salaryTotal(S, S.user) - underpaid.contract.salary + ask > (S.cap || 38)) ? 'You are too close to the cap for this' : '+3 morale, he plays fired up (meter 60)' }, { id: 'firm', label: 'Hold firm', desc: 'He holds out 1–3 weeks, then returns bitter' }] };
       }
       case 'walkon': {
         const kp = !!S_.slotFor(S, S.user, 'KP') && !S.rosters[S.user].stars.some((s) => s.pos === 'KP');
@@ -871,25 +1019,39 @@
         if (roster.bench && roster.bench.id === s.id) roster.bench = null; else roster.stars = roster.stars.filter((x) => x.id !== s.id);
         // he lands on a rival
         const dest = pick([...Array(32).keys()].filter((x) => x !== S.user && S_.slotFor(S, x, s.pos)));
-        if (dest != null) { addToRoster(S, dest, Object.assign({}, s, { salary: s.contract.salary }), s.contract.years || 1); extra = ` He's headed to ${T(dest).city}.`; }
+        if (dest != null) { addToRoster(S, dest, Object.assign({}, s, { salary: s.contract.salary, formerTeams: (s.formerTeams || []).concat([{ team: S.user, how: 'traded', year: S.year }]), chem: {} }), s.contract.years || 1); extra = ` He's headed to ${T(dest).city}.`; }
         S.cash += comp; S.fin.events -= comp;
       }
     }
-    if (choiceId === 'keep') { S.mods.morale = (S.mods.morale || 0) - 5; S.mods.starMeter[ev.star] = 0; if (R() < 0.25) { S.inj[ev.star] = 2; extra = ' He is holding out for a week.'; } }
+    if (choiceId === 'keep') {
+      S.mods.morale = (S.mods.morale || 0) - 5; S.mods.starMeter[ev.star] = 0;
+      if (R() < 0.3) { S.holdout[ev.star] = 1; extra = ' He is holding out for a week.'; }
+      S.story.push({ kind: 'feud', id: ev.star, weeks: 0 });
+    }
+    if (choiceId === 'pay') {
+      const s = S_.allStars(S, S.user).find((x) => x.id === ev.star);
+      if (s && S_.salaryTotal(S, S.user) - s.contract.salary + ev.ask <= (S.cap || 38)) { s.contract = { years: 3, salary: ev.ask, active: true }; S.mods.morale = (S.mods.morale || 0) + 3; S.mods.starMeter[ev.star] = 60; extra = ' Deal done.'; }
+      else { S.holdout[ev.star] = ri(1, 3); extra = ` You don't have the cap room. He holds out ${S.holdout[ev.star]} week${S.holdout[ev.star] > 1 ? 's' : ''}.`; }
+      S.story.push({ kind: 'holdoutAsk', weeks: 0 });
+    }
+    if (choiceId === 'firm') { const w = ri(1, 3); S.holdout[ev.star] = w; extra = ` He's holding out (${w} week${w > 1 ? 's' : ''}).`; S.story.push({ kind: 'holdoutAsk', weeks: 0 }); }
     if (choiceId === 'match') { S.cash -= 2; S.fin.events += 2; roster.coaches[ev.coach].rating = Math.min(95, roster.coaches[ev.coach].rating + 3); }
     if (choiceId === 'letgo') {
       const co = roster.coaches[ev.coach];
-      const nu = { role: co.role, name: pick(GI.FIRST) + ' ' + pick(GI.COACH_LAST), rating: clamp(co.rating + ri(-8, 5), 50, 92), style: ev.coach === 'oc' ? pick(Object.keys(GI.OC_STYLES)) : pick(Object.keys(GI.DC_STYLES)) };
-      roster.coaches[ev.coach] = nu;
-      extra = ` New ${co.role.toLowerCase()}: ${nu.name} (${nu.rating}, ${(GI.OC_STYLES[nu.style] || GI.DC_STYLES[nu.style])}).`;
+      const nu = GI.league.newCoach(S, ev.coach, { rating: clamp(co.rating + ri(-8, 5), 50, 92) });
+      GI.league.hire(S, S.user, ev.coach, nu, 'poached');
+      // he lands with the rival who called
+      if (ev.rival != null) { const rv = S.rosters[ev.rival]; GI.league.hire(S, ev.rival, ev.coach, co, rv.coaches[ev.coach].rating < co.rating ? 'fired' : 'letgo'); }
+      extra = ` New ${co.role.toLowerCase()}: ${nu.name} (${nu.rating}, ${(GI.OC_STYLES[nu.style] || GI.DC_STYLES[nu.style])}). ${co.name.split(' ').pop()} will see you again.`;
     }
     if (choiceId === 'fire') {
       S.cash -= 3; S.fin.events += 3;
-      const nu = { role: 'Head Coach', name: pick(GI.FIRST) + ' ' + pick(GI.COACH_LAST), rating: ri(58, 88) };
-      roster.coaches.hc = nu; S.mods.morale = (S.mods.morale || 0) + 6; S.morale[S.user] = 0;
+      const nu = GI.league.newCoach(S, 'hc', { rating: ri(58, 88) });
+      GI.league.hire(S, S.user, 'hc', nu, 'fired');
+      S.mods.morale = (S.mods.morale || 0) + 6; S.morale[S.user] = 0;
       extra = ` ${nu.name} (${nu.rating}) takes over.`;
     }
-    if (choiceId === 'back') { S.mods.morale = (S.mods.morale || 0) - 3; roster.coaches.hc.rating = Math.min(95, roster.coaches.hc.rating + 3); }
+    if (choiceId === 'back') { S.mods.morale = (S.mods.morale || 0) - 3; roster.coaches.hc.rating = Math.min(95, roster.coaches.hc.rating + 3); S.story.push({ kind: 'hotseat', weeks: 0, w0: S.rec[S.user].w, l0: S.rec[S.user].l }); }
     if (choiceId === 'pursue') { S.cash -= 1; S.fin.events += 1; S.scouted.push({ p: ev.prospect, early: ev.early }); }
     if (choiceId === 'sign') {
       const slot = addToRoster(S, S.user, ev.prospect, 1);

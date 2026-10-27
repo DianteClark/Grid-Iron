@@ -85,7 +85,77 @@
     ret: { name: 'House Call', desc: 'Takes a kick or punt back for a huge return, maybe all the way' },
     cov: { name: 'Big Hit', desc: 'Blows up the returner on kick coverage, can jar the ball loose' },
   };
-  GI.COLLEGES = ['Lakeshore State', 'Red Rock Tech', 'Pine Valley', 'Ozark A&M', 'Coastal Carolina Tech', 'Great Plains U', 'Mesa Verde', 'Northern Pines', 'Bayou State', 'Granite Falls', 'Sierra Polytechnic', 'Cumberland', 'Prairie View Tech', 'Iron Range', 'Harbor City', 'Blue Ridge', 'Copper Basin', 'Timberline', 'Sunbelt State', 'Riverside A&T'];
+  // one college per franchise city (same order as TEAMS_BASE): drafting a "hometown hero" fires up the fans
+  GI.COLLEGES = ['Hill Country State', 'Red Mountain Tech', 'Snake River U', 'Harbor City', 'Lowcountry A&M', 'Buckeye Valley', 'Great Plains U', 'Rio Grande State', 'Central Valley Tech', 'Charter Oak', 'Pacific Islands U', 'Mesa Verde', 'Bluegrass State', 'Delta State', 'Lakeshore State', 'Platte River U',
+    'Sunshine Tech', 'Timberline', 'Ocean State', 'Triangle Tech', 'Silver State', 'James River U', 'Sierra Polytechnic', 'Wasatch State', 'Alamo A&M', 'Inland Empire U', 'Gateway U', 'Green Country State', 'Northern Lights U', 'Maumee Valley', 'Coastal Georgia', 'Prairie Wind Tech'];
+  GI.homeCollege = (teamIdx) => GI.COLLEGES[teamIdx];
+  GI.COLLEGE_COLORS = ['#bf5700', '#8b1e3f', '#0b6e4f', '#1d3557', '#2a9d8f', '#bb0000', '#6a994e', '#c1440e', '#3a5a40', '#0f4c81', '#00818a', '#9d4edd', '#005eb8', '#7b2d26', '#007a33', '#b08d57',
+    '#ff7f11', '#2d6a4f', '#3f88c5', '#cc0033', '#264653', '#7f1d1d', '#e76f51', '#1b4965', '#9b2226', '#588157', '#4361ee', '#d00000', '#14746f', '#6b705c', '#bc6c25', '#023e8a'];
+
+  // star traits: 1-2 per star (some have none)
+  GI.TRAITS = {
+    leader: { name: 'Leader', icon: '📣', desc: '+3 team morale every game he plays' },
+    diva: { name: 'Diva', icon: '💅', desc: 'Meter fills 20% faster, more clutch — and more drama' },
+    gymrat: { name: 'Gym Rat', icon: '🏋️', desc: 'Grows faster at spring training' },
+    ironman: { name: 'Ironman', icon: '🛡️', desc: 'Rarely gets hurt, heals faster' },
+    biggame: { name: 'Big Game', icon: '💎', desc: 'Clutch and hot in playoffs and rivalry games' },
+    mentor: { name: 'Mentor', icon: '🎓', desc: 'Young stars at his position grow faster' },
+  };
+  GI.TRAIT_KEYS = Object.keys(GI.TRAITS);
+
+  // offseason playbook identity
+  GI.IDENTITIES = {
+    ground: { name: 'Ground & Pound', icon: '🐂', calls: { in_run: 0.22, out_run: 0.18 }, fit: ['RB', 'OL', 'TE'], desc: 'Runs hit harder. RB, OL and TE stars love it.' },
+    air: { name: 'Air Raid', icon: '🚀', calls: { long: 0.22, short: 0.12 }, fit: ['QB', 'WR'], desc: 'Deep shots land more. QB and WR stars love it.' },
+    west: { name: 'West Coast', icon: '🌊', calls: { short: 0.24, out_run: 0.08 }, fit: ['QB', 'TE', 'RB'], desc: 'Quick timing throws. QB, TE and RB stars love it.' },
+    blitz: { name: 'Blitz Heavy', icon: '⚡', calls: { blitz_in: 0.22, blitz_out: 0.22 }, fit: ['LB', 'DL'], desc: 'Pressure packages hit home. LB and DL stars love it.' },
+    bend: { name: "Bend Don't Break", icon: '🧱', calls: { deep: 0.16, zone: 0.16 }, rz: 0.3, fit: ['S', 'CB'], desc: 'Shells hold and the red zone tightens. S and CB stars love it.' },
+  };
+
+  // halftime adjustments
+  GI.ADJUST = {
+    double: { name: 'Double their top target', icon: '🎯', desc: 'Their passing game −, their run game +' },
+    stack: { name: 'Stack the box', icon: '🧱', desc: 'Their run game −, their deep ball +' },
+    ground: { name: 'Lean on the run', icon: '🐂', desc: 'Your runs +, your passes a little −' },
+    protect: { name: 'Protect the QB', icon: '🛡️', desc: 'Half as many sacks, deep shots slightly −' },
+    airout: { name: 'Air it out', icon: '🚀', desc: 'Your deep ball +, a bit more pick risk' },
+    secure: { name: 'Ball security', icon: '🤲', desc: 'Half the turnovers, slightly less punch' },
+    tempo: { name: 'Up-tempo', icon: '⏩', desc: 'Faster snaps and hotter star meters' },
+  };
+
+  // why a call beat (or lost to) the other side's call
+  GI.REASON = {
+    'in_run|deep': 'Inside runs gash a deep shell', 'in_run|blitz_in': 'The A-gap blitz met him in the hole',
+    'out_run|blitz_in': 'Everyone crashed inside — the edge was wide open', 'out_run|blitz_out': 'Edge rushers sealed the corner',
+    'short|deep': 'Soft cushion underneath — easy pitch-and-catch', 'short|press': 'Jammed at the line, no quick throws',
+    'long|press': 'Pressed corners got beat over the top', 'long|deep': 'Safeties were waiting deep',
+    'trick|blitz_in': 'Blitzers flew past the flea flicker', 'trick|blitz_out': 'Edge pressure overran the trick',
+    'trick|man': 'Man coverage stayed glued on the trick',
+  };
+
+  // Legacy store cosmetics (bought with Legacy Points)
+  GI.COSMETICS = {
+    jersey: {
+      home: { name: 'Home', cost: 0, desc: 'Your classic colors' },
+      throwback: { name: 'Throwback', cost: 40, desc: 'Colors flipped, old-school' },
+      blackout: { name: 'Blackout', cost: 60, desc: 'All black, trim in your color' },
+      gold: { name: 'Gold Rush', cost: 80, desc: 'Champion gold' },
+      ice: { name: 'Ice', cost: 60, desc: 'Arctic white' },
+    },
+    field: {
+      classic: { name: 'Classic Turf', cost: 0, desc: 'Fresh-cut stripes' },
+      checker: { name: 'Checkerboard', cost: 50, desc: 'Checkerboard end zones' },
+      retro: { name: 'Retro Grass', cost: 50, desc: 'Sun-baked 70s field' },
+      night: { name: 'Night Game', cost: 70, desc: 'Under the lights' },
+      neon: { name: 'Neon', cost: 90, desc: 'Glowing yard lines' },
+    },
+    celebrate: {
+      confetti: { name: 'Confetti', cost: 0, desc: 'Paper confetti burst' },
+      fireworks: { name: 'Fireworks', cost: 50, desc: 'Sparks fly on every score' },
+      stickers: { name: 'Sticker Storm', cost: 60, desc: 'Stars and crests rain down' },
+      goldrain: { name: 'Gold Rain', cost: 80, desc: 'A shower of gold' },
+    },
+  };
   // flexible star slot limits (on-field room)
   GI.FLEX_MAX = { RB: 1, WR: 3, TE: 1, OL: 3, LB: 2, S: 2, DL: 3, CB: 2 };
 
